@@ -3,7 +3,6 @@ import { GoogleGenAI, Type } from "@google/genai";
 import { GeneratePlanPayload, Challenge, HealthArea } from "../types";
 import { CONFIG } from "./config";
 
-// A chave API_KEY é obtida exclusivamente do ambiente via process.env.API_KEY
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 export const generateChallengePlan = async (payload: GeneratePlanPayload): Promise<Omit<Challenge, 'completed'>[]> => {
@@ -11,7 +10,7 @@ export const generateChallengePlan = async (payload: GeneratePlanPayload): Promi
 
   const areasString = payload.health_areas.join(", ");
 
-  const prompt = `
+  const promptText = `
     ATUE COMO UM ESTRATEGISTA DO MÉTODO "METADESAFIOS".
     Sua missão é criar um desafio de 21 dias baseado na Jornada do Herói e no acrônimo METADESAFIOS.
 
@@ -24,8 +23,8 @@ export const generateChallengePlan = async (payload: GeneratePlanPayload): Promi
     - Nome/Perfil: ${payload.student_name}
     - Dores/Interesses: ${payload.student_profile} | ${payload.student_interests}
 
-    # BASE DE CONHECIMENTO (MATERIAL DO EXPERT)
-    ${payload.materials_summary || "Criar baseado no avatar, pois não foi fornecido material prévio."}
+    # BASE DE CONHECIMENTO
+    ${payload.pdf_base64 ? "Analise o arquivo PDF anexo para extrair a metodologia e conteúdo." : (payload.materials_summary || "Criar baseado no avatar, pois não foi fornecido material prévio.")}
 
     # METODOLOGIA METADESAFIOS
     Crie uma sequência lógica de 21 dias com progressão de dificuldade.
@@ -33,20 +32,34 @@ export const generateChallengePlan = async (payload: GeneratePlanPayload): Promi
     # ESTRUTURA DE 21 DIAS (3 ATOS)
     ATO 1 (Dias 1-7): Diagnóstico e vitórias rápidas.
     ATO 2 (Dias 8-13): Superação de travas e novos hábitos.
-    ATO 3 (Dias 14-21): Consolidação e Prova de Fogo final.
+    ATO 3 (Dias 14-21): Consolidação e Prova de Fogo final (Fire Trial).
+
+    # ÁREAS DE FOCO SELECIONADAS
+    ${areasString}
 
     Retorne um JSON array com 21 objetos.
   `;
 
-  // Prepara as propriedades do schema para os pesos de saúde
   const healthAreaProperties: Record<string, any> = {};
   Object.values(HealthArea).forEach(area => {
     healthAreaProperties[area] = { type: Type.INTEGER };
   });
 
+  // Construção de partes multimodais
+  const parts: any[] = [{ text: promptText }];
+  
+  if (payload.pdf_base64) {
+    parts.push({
+      inlineData: {
+        data: payload.pdf_base64,
+        mimeType: 'application/pdf'
+      }
+    });
+  }
+
   const response = await ai.models.generateContent({
     model: modelName,
-    contents: prompt,
+    contents: { parts },
     config: {
       responseMimeType: "application/json",
       responseSchema: {

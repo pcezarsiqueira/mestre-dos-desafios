@@ -23,6 +23,39 @@ export interface BrandingSettings {
   expertName: string;
 }
 
+// --- Multi-tenant Types ---
+
+export interface ChallengeItem extends Omit<Challenge, 'completed' | 'comments'> {
+  proofType?: 'text' | 'image' | 'checklist';
+  badge?: string;
+}
+
+export interface ChallengeTrack {
+  id: string;
+  name: string;
+  days: number;
+  description: string;
+  challenges: ChallengeItem[];
+}
+
+export interface LandingCopy {
+  headline: string;
+  subheadline: string;
+  ctaText: string;
+  features?: { title: string; desc: string }[];
+}
+
+export interface TenantConfig {
+  slug: string;
+  branding: BrandingSettings;
+  landing: LandingCopy;
+  tracks: ChallengeTrack[];
+  inviteCode?: string;
+  isAdminTenant: boolean;
+}
+
+// --- Existing Types ---
+
 export interface User {
   id: string;
   name: string;
@@ -90,13 +123,13 @@ export interface StripePackage {
 
 export type WizardStepId = 'welcome' | 'qualification' | 'method' | 'content-choice' | 'material-upload' | 'avatar-creation' | 'health-areas';
 
-// Added missing types to fix import errors across the application
 export interface GeneratePlanPayload {
   mentor_profile: string;
   transformation_type: string;
   method_status: string;
   has_material: boolean;
   materials_summary: string;
+  pdf_base64?: string;
   student_name: string;
   student_profile: string;
   student_interests: string;

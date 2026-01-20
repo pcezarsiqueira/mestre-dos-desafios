@@ -1,0 +1,17 @@
+
+{
+  "slug": "default",
+  "branding": {
+    "primaryColor": "#fe7501",
+    "secondaryColor": "#10b981",
+    "accentColor": "#f43f5e",
+    "mentoryName": "Mestre dos Desafios",
+    "expertName": "Admin"
+  },
+  "landing": {
+    "headline": "Escale sua Mentoria com Desafios de 21 Dias",
+    "subheadline": "Abandone os PDFs estáticos. Crie experiências imersivas, gamificadas e 100% automatizadas com Inteligência Artificial.",
+    "ctaText": "Começar Agora Gratuitamente"
+  },
+  "tracks": []
+}

@@ -9,7 +9,7 @@
 export const CONFIG = {
   STRIPE: {
     // COLE SUA CHAVE PUBLISHABLE ABAIXO (pk_test_...)
-    PUBLISHABLE_KEY: 'pk_live_51S3d24K4JRSIEBiEXhaMxEOD2l2JokbRtnJaQfOAzWTKC4sOvD6HpF5u3SbSwxm7PslCajOor2NLiQibd9FnLbLv00rZwJDBTG',
+    PUBLISHABLE_KEY: 'pk_test_INSIRA_SUA_CHAVE_AQUI',
     ENABLED: true,
   },
   GEMINI: {

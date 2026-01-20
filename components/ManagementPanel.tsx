@@ -1,10 +1,12 @@
 
 import React, { useState, useEffect } from 'react';
-import { Mentorship, RegisteredStudent, RegisteredGroup, ChallengePlan } from '../types';
+import { Mentorship, RegisteredStudent, RegisteredGroup, ChallengePlan, TenantConfig } from '../types';
 import * as Store from '../services/store';
-import { Users, GraduationCap, Package, Plus, Trash2, Mail, Link, Copy, Check, Share2 } from 'lucide-react';
+import { Users, GraduationCap, Package, Plus, Trash2, Mail, Link, Copy, Check, Share2, Download, FileJson } from 'lucide-react';
+import { useTenant } from '../contexts/TenantContext';
 
 const ManagementPanel: React.FC = () => {
+  const { config: tenantConfig } = useTenant();
   const [mentorships, setMentorships] = useState<Mentorship[]>([]);
   const [students, setStudents] = useState<RegisteredStudent[]>([]);
   const [groups, setGroups] = useState<RegisteredGroup[]>([]);
@@ -29,9 +31,62 @@ const ManagementPanel: React.FC = () => {
     setTimeout(() => setCopied(false), 2000);
   };
 
+  const handleExportTenant = () => {
+    const user = Store.getCurrentUser();
+    const plan = Store.getPlan();
+
+    if (!user || !plan) {
+      alert("Crie uma jornada (plano) antes de exportar.");
+      return;
+    }
+
+    // Converte o plano atual em uma Track gamificada para o Tenant
+    const tenantToExport: TenantConfig = {
+      slug: user.name.toLowerCase().replace(/\s/g, ''),
+      isAdminTenant: false,
+      branding: user.branding || {
+        primaryColor: '#fe7501',
+        secondaryColor: '#10b981',
+        accentColor: '#f43f5e',
+        mentoryName: 'Minha Mentoria',
+        expertName: user.name
+      },
+      landing: {
+        headline: `Bem-vindo à Jornada ${plan.planTitle}`,
+        subheadline: plan.planDescription,
+        ctaText: 'Iniciar Jornada Gamificada'
+      },
+      tracks: [
+        {
+          id: plan.id,
+          name: plan.planTitle,
+          description: plan.planDescription,
+          days: plan.challenges.length,
+          challenges: plan.challenges.map(c => {
+            const { completed, comments, ...rest } = c;
+            return {
+              ...rest,
+              proofType: 'text',
+              badge: 'Conquistador'
+            };
+          })
+        }
+      ]
+    };
+
+    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(tenantToExport, null, 2));
+    const downloadAnchorNode = document.createElement('a');
+    downloadAnchorNode.setAttribute("href", dataStr);
+    downloadAnchorNode.setAttribute("download", `${tenantToExport.slug}.json`);
+    document.body.appendChild(downloadAnchorNode);
+    downloadAnchorNode.click();
+    downloadAnchorNode.remove();
+    
+    alert(`Instância [${tenantToExport.slug}.json] exportada com sucesso! \n\nPróximo passo: Coloque esse arquivo na pasta /public/tenants/ e configure seu subdomínio.`);
+  };
+
   const addMentorship = () => {
     if (!newM.title) return;
-    // Fixed: Added missing expertId and price properties to comply with Mentorship interface
     const m: Mentorship = {
       id: crypto.randomUUID(),
       expertId: Store.getCurrentUser()?.id || 'me',
@@ -49,17 +104,35 @@ const ManagementPanel: React.FC = () => {
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
       
-      {/* Jornada Ativa e Compartilhamento */}
+      {/* Exportação de Instância */}
+      <div className="bg-gradient-to-r from-primary/20 to-indigo-500/20 p-8 rounded-[40px] border border-white/10 shadow-2xl flex flex-col md:flex-row items-center justify-between gap-6">
+        <div className="flex items-center gap-4 text-left">
+          <div className="w-14 h-14 bg-white/10 rounded-2xl flex items-center justify-center text-primary backdrop-blur-md">
+            <FileJson size={32} />
+          </div>
+          <div>
+            <h3 className="font-mont text-xl font-black text-white">Publicar como Sistema Gamificado</h3>
+            <p className="text-slate-400 text-sm">Exporte sua jornada atual para seu próprio subdomínio white-label.</p>
+          </div>
+        </div>
+        <button 
+          onClick={handleExportTenant}
+          className="flex items-center gap-2 px-8 py-4 bg-white text-dark rounded-2xl font-black hover:scale-105 transition-all shadow-xl"
+        >
+          <Download size={20} /> Exportar Tenant (.json)
+        </button>
+      </div>
+
       {plan && (
-        <div className="bg-gradient-to-br from-card to-dark p-8 rounded-[40px] border border-primary/20 shadow-2xl">
+        <div className="bg-card p-8 rounded-[40px] border border-white/5 shadow-2xl">
           <div className="flex flex-col md:flex-row items-center justify-between gap-6">
             <div className="flex items-center gap-4">
-              <div className="w-14 h-14 bg-primary/20 rounded-full flex items-center justify-center text-primary shadow-inner">
-                <Share2 size={28} />
+              <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center text-primary">
+                <Share2 size={24} />
               </div>
-              <div>
-                <h3 className="font-mont text-xl font-black text-white">Convidar para a Jornada</h3>
-                <p className="text-slate-500 text-sm">Envie este link para seu mentorado iniciar o desafio.</p>
+              <div className="text-left">
+                <h3 className="font-mont text-lg font-black text-white">Convite Rápido</h3>
+                <p className="text-slate-500 text-xs">Acesso direto à jornada atual.</p>
               </div>
             </div>
             <div className="flex items-center gap-2 bg-dark/50 p-2 rounded-2xl border border-white/10 w-full md:w-auto">
@@ -71,122 +144,50 @@ const ManagementPanel: React.FC = () => {
                 className={`flex items-center gap-2 px-6 py-3 rounded-xl font-bold transition-all ${copied ? 'bg-emerald-500 text-white' : 'bg-primary text-dark hover:brightness-110'}`}
               >
                 {copied ? <Check size={18} /> : <Copy size={18} />}
-                {copied ? 'Copiado!' : 'Copiar Link'}
+                {copied ? 'Copiado!' : 'Copiar'}
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Mentorias / Produtos */}
-      <div className="bg-card p-8 rounded-2xl border border-white/5 shadow-xl">
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center gap-3">
-            <Package className="text-primary" />
-            <h3 className="text-xl font-bold text-white">Suas Mentorias & Produtos</h3>
-          </div>
-          <button 
-            onClick={() => setShowAddMentorship(true)}
-            className="bg-primary/10 text-primary border border-primary/20 text-xs font-bold px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-primary hover:text-dark transition-all"
-          >
-            <Plus size={14} /> Nova Mentoria
-          </button>
-        </div>
-
-        {showAddMentorship && (
-          <div className="mb-6 p-6 bg-dark/50 rounded-3xl border border-white/10 space-y-4 animate-in slide-in-from-top-4">
-            <input 
-              className="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-white outline-none focus:border-primary" 
-              placeholder="Nome da Mentoria (Ex: Mentoria de Emagrecimento Sistêmico)"
-              value={newM.title}
-              onChange={e => setNewM({...newM, title: e.target.value})}
-            />
-            <textarea 
-              className="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-white outline-none h-20" 
-              placeholder="Qual o objetivo principal desta mentoria?"
-              value={newM.description}
-              onChange={e => setNewM({...newM, description: e.target.value})}
-            />
-            <div className="flex justify-end gap-3">
-              <button onClick={() => setShowAddMentorship(false)} className="text-slate-400 text-sm font-bold">Cancelar</button>
-              <button onClick={addMentorship} className="bg-primary text-dark px-6 py-2 rounded-xl text-sm font-black">Salvar Mentoria</button>
-            </div>
-          </div>
-        )}
-
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {mentorships.length > 0 ? mentorships.map(m => (
-            <div key={m.id} className="p-6 bg-dark/30 rounded-3xl border border-white/5 hover:border-primary/50 transition-all group">
-              <h4 className="text-white font-black mb-1 group-hover:text-primary transition-colors">{m.title}</h4>
-              <p className="text-slate-500 text-xs mb-4 line-clamp-2">{m.description}</p>
-              <div className="flex justify-between items-center text-[10px] text-slate-600 font-bold uppercase tracking-widest">
-                <span>{new Date(m.createdAt).toLocaleDateString()}</span>
-                <button className="text-red-500/30 hover:text-red-500 transition-colors"><Trash2 size={14} /></button>
-              </div>
-            </div>
-          )) : (
-            <div className="col-span-full py-12 text-center text-slate-600 text-sm italic border-2 border-dashed border-white/5 rounded-3xl">
-              Nenhuma mentoria cadastrada ainda. Comece criando sua primeira oferta.
-            </div>
-          )}
-        </div>
-      </div>
-
+      {/* Grid de Gestão */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        
-        {/* Alunos Cadastrados */}
+        <div className="bg-card p-8 rounded-2xl border border-white/5 shadow-xl">
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center gap-3">
+              <Package className="text-primary" />
+              <h3 className="text-xl font-bold text-white">Seus Produtos</h3>
+            </div>
+            <button onClick={() => setShowAddMentorship(true)} className="bg-white/5 text-white text-[10px] font-black px-4 py-2 rounded-lg border border-white/10">NOVO</button>
+          </div>
+          {/* Listagem Simplificada */}
+          <div className="space-y-3">
+            {mentorships.map(m => (
+              <div key={m.id} className="p-4 bg-dark/30 rounded-2xl border border-white/5 flex justify-between items-center group">
+                <span className="text-sm font-bold text-white group-hover:text-primary transition-colors">{m.title}</span>
+                <Trash2 size={14} className="text-slate-600 hover:text-red-500 cursor-pointer" />
+              </div>
+            ))}
+          </div>
+        </div>
+
         <div className="bg-card p-8 rounded-2xl border border-white/5 shadow-xl">
           <div className="flex items-center gap-3 mb-6">
             <GraduationCap className="text-emerald-500" />
-            <h3 className="text-xl font-bold text-white">Base de Mentorados</h3>
+            <h3 className="text-xl font-bold text-white">Alunos Ativos</h3>
           </div>
           <div className="space-y-3">
              {students.length > 0 ? students.map(s => (
-               <div key={s.id} className="flex items-center justify-between p-4 bg-dark/30 rounded-2xl border border-white/5 hover:bg-dark/50 transition-all">
-                 <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-emerald-500/10 flex items-center justify-center text-emerald-500">
-                      <i className="ri-user-line"></i>
-                    </div>
-                    <div>
-                      <p className="text-sm font-black text-white leading-none">{s.name}</p>
-                      <p className="text-[10px] text-slate-500 font-bold">{s.email}</p>
-                    </div>
-                 </div>
-                 <button className="p-2 text-slate-500 hover:text-primary transition-all">
-                    <Mail size={18} />
-                 </button>
+               <div key={s.id} className="flex items-center justify-between p-4 bg-dark/30 rounded-2xl border border-white/5">
+                  <span className="text-sm font-bold text-white">{s.name}</span>
+                  <Mail size={16} className="text-slate-500" />
                </div>
              )) : (
-               <div className="py-8 text-center bg-dark/20 rounded-2xl border border-dashed border-white/5">
-                 <p className="text-slate-600 text-sm italic">Seus alunos aparecerão aqui conforme entrarem pelos links.</p>
-               </div>
+               <p className="text-slate-600 text-xs italic text-center py-4">Aguardando primeiros alunos...</p>
              )}
           </div>
         </div>
-
-        {/* Grupos de Desafio */}
-        <div className="bg-card p-8 rounded-2xl border border-white/5 shadow-xl">
-          <div className="flex items-center gap-3 mb-6">
-            <Users className="text-indigo-400" />
-            <h3 className="text-xl font-bold text-white">Grupos de Desafio</h3>
-          </div>
-          <div className="space-y-3">
-             {groups.length > 0 ? groups.map(g => (
-               <div key={g.id} className="flex items-center justify-between p-4 bg-dark/30 rounded-2xl border border-white/5">
-                 <div>
-                   <p className="text-sm font-black text-white leading-none">{g.name}</p>
-                   <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">{g.studentCount} Participantes</p>
-                 </div>
-                 <span className="text-[10px] font-black px-3 py-1 bg-indigo-500/10 text-indigo-400 rounded-full border border-indigo-500/20">ATIVO</span>
-               </div>
-             )) : (
-               <div className="py-8 text-center bg-dark/20 rounded-2xl border border-dashed border-white/5">
-                 <p className="text-slate-600 text-sm italic">Crie grupos para jornadas coletivas de mentorias.</p>
-               </div>
-             )}
-          </div>
-        </div>
-
       </div>
     </div>
   );

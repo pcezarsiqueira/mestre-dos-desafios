@@ -1,6 +1,34 @@
 
 import { ChallengePlan, User, UserRole, BrandingSettings, Mentorship, RegisteredStudent, RegisteredGroup } from "../types";
 
+let currentTenant = 'default';
+
+export const setStoreTenant = (slug: string) => {
+  currentTenant = slug;
+};
+
+const storageKey = (baseKey: string): string => {
+  return `TENANT:${currentTenant}:${baseKey}`;
+};
+
+// Migração simples: se não houver dados no tenant mas houver na chave global (antiga), migra.
+const getWithMigration = (key: string): string | null => {
+  const namespaced = localStorage.getItem(storageKey(key));
+  if (namespaced) return namespaced;
+
+  // Se estivermos no default, tentamos pegar a chave antiga sem prefixo
+  if (currentTenant === 'default') {
+    const legacy = localStorage.getItem(key);
+    if (legacy) {
+      console.log(`Migrando chave legada: ${key}`);
+      localStorage.setItem(storageKey(key), legacy);
+      // Opcional: localStorage.removeItem(key); // Cuidado ao remover produção
+      return legacy;
+    }
+  }
+  return null;
+};
+
 const PLAN_KEY = 'mestre_desafios_plan';
 const USER_KEY = 'mestre_desafios_user';
 const MENTORSHIPS_KEY = 'mestre_desafios_mentorships';
@@ -8,7 +36,7 @@ const STUDENTS_KEY = 'mestre_desafios_students';
 const GROUPS_KEY = 'mestre_desafios_groups';
 
 export const loginUser = (name: string, role: UserRole): User => {
-  const stored = localStorage.getItem(USER_KEY);
+  const stored = getWithMigration(USER_KEY);
   if (stored) {
     const u = JSON.parse(stored);
     if (u.role === role) return u;
@@ -30,7 +58,7 @@ export const loginUser = (name: string, role: UserRole): User => {
       expertName: name
     }
   };
-  localStorage.setItem(USER_KEY, JSON.stringify(user));
+  localStorage.setItem(storageKey(USER_KEY), JSON.stringify(user));
   return user;
 };
 
@@ -38,35 +66,35 @@ export const updateBranding = (branding: BrandingSettings) => {
   const user = getCurrentUser();
   if (user) {
     user.branding = branding;
-    localStorage.setItem(USER_KEY, JSON.stringify(user));
+    localStorage.setItem(storageKey(USER_KEY), JSON.stringify(user));
     return user;
   }
   return null;
 };
 
-export const getMentorships = (): Mentorship[] => JSON.parse(localStorage.getItem(MENTORSHIPS_KEY) || '[]');
+export const getMentorships = (): Mentorship[] => JSON.parse(getWithMigration(MENTORSHIPS_KEY) || '[]');
 export const saveMentorship = (m: Mentorship) => {
   const current = getMentorships();
-  localStorage.setItem(MENTORSHIPS_KEY, JSON.stringify([...current, m]));
+  localStorage.setItem(storageKey(MENTORSHIPS_KEY), JSON.stringify([...current, m]));
 };
 
-export const getStudents = (): RegisteredStudent[] => JSON.parse(localStorage.getItem(STUDENTS_KEY) || '[]');
+export const getStudents = (): RegisteredStudent[] => JSON.parse(getWithMigration(STUDENTS_KEY) || '[]');
 export const saveStudent = (s: RegisteredStudent) => {
   const current = getStudents();
-  localStorage.setItem(STUDENTS_KEY, JSON.stringify([...current, s]));
+  localStorage.setItem(storageKey(STUDENTS_KEY), JSON.stringify([...current, s]));
 };
 
-export const getGroups = (): RegisteredGroup[] => JSON.parse(localStorage.getItem(GROUPS_KEY) || '[]');
+export const getGroups = (): RegisteredGroup[] => JSON.parse(getWithMigration(GROUPS_KEY) || '[]');
 export const saveGroup = (g: RegisteredGroup) => {
   const current = getGroups();
-  localStorage.setItem(GROUPS_KEY, JSON.stringify([...current, g]));
+  localStorage.setItem(storageKey(GROUPS_KEY), JSON.stringify([...current, g]));
 };
 
 export const deductCredit = () => {
   const user = getCurrentUser();
   if (user && user.credits > 0) {
     user.credits -= 1;
-    localStorage.setItem(USER_KEY, JSON.stringify(user));
+    localStorage.setItem(storageKey(USER_KEY), JSON.stringify(user));
     return user;
   }
   return null;
@@ -76,31 +104,31 @@ export const addCredits = (amount: number) => {
   const user = getCurrentUser();
   if (user) {
     user.credits += amount;
-    localStorage.setItem(USER_KEY, JSON.stringify(user));
+    localStorage.setItem(storageKey(USER_KEY), JSON.stringify(user));
     return user;
   }
   return null;
 };
 
 export const getCurrentUser = (): User | null => {
-  const stored = localStorage.getItem(USER_KEY);
+  const stored = getWithMigration(USER_KEY);
   return stored ? JSON.parse(stored) : null;
 };
 
 export const logoutUser = () => {
-  localStorage.removeItem(USER_KEY);
+  localStorage.removeItem(storageKey(USER_KEY));
 };
 
 export const savePlan = (plan: ChallengePlan | null) => {
   if (plan === null) {
-    localStorage.removeItem(PLAN_KEY);
+    localStorage.removeItem(storageKey(PLAN_KEY));
   } else {
-    localStorage.setItem(PLAN_KEY, JSON.stringify(plan));
+    localStorage.setItem(storageKey(PLAN_KEY), JSON.stringify(plan));
   }
 };
 
 export const getPlan = (): ChallengePlan | null => {
-  const stored = localStorage.getItem(PLAN_KEY);
+  const stored = getWithMigration(PLAN_KEY);
   return stored ? JSON.parse(stored) : null;
 };
 

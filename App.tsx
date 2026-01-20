@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { User, UserRole, ChallengePlan, GeneratePlanPayload } from './types';
+import { User, UserRole, ChallengePlan, GeneratePlanPayload, HealthArea } from './types';
 import * as Store from './services/store';
 import * as GeminiService from './services/geminiService';
 import * as NotificationService from './services/notificationService';
@@ -11,39 +11,71 @@ import InsightsPanel from './components/InsightsPanel';
 import ManagementPanel from './components/ManagementPanel';
 import LandingPage from './components/LandingPage';
 import { CONFIG } from './services/config';
+import { useTenant } from './contexts/TenantContext';
 
 const App: React.FC = () => {
+  const { slug, config, isLoading: tenantLoading } = useTenant();
   const [user, setUser] = useState<User | null>(null);
   const [plan, setPlan] = useState<ChallengePlan | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [activeTab, setActiveTab] = useState<'dashboard' | 'management' | 'settings' | 'insights'>('dashboard');
 
   useEffect(() => {
-    console.log(`Iniciando ${CONFIG.APP.NAME} v${CONFIG.APP.VERSION}`);
+    if (tenantLoading) return;
+
+    console.log(`Iniciando ${CONFIG.APP.NAME} v${CONFIG.APP.VERSION} | Tenant: ${slug}`);
+    
     const currentUser = Store.getCurrentUser();
     if (currentUser) setUser(currentUser);
 
     const currentPlan = Store.getPlan();
-    if (currentPlan) setPlan(currentPlan);
-  }, []);
+    if (currentPlan) {
+      setPlan(currentPlan);
+    } else if (!config?.isAdminTenant && config?.tracks && config.tracks.length > 0) {
+      // Se for um tenant de aluno e não tiver plano, podemos pré-carregar a track do tenant
+      // Note: Isso simula o aluno iniciando a jornada gamificada do expert
+    }
+  }, [tenantLoading, slug, config]);
+
+  // Se o config do tenant define cores, elas sobrepõem o branding do usuário (White label real)
+  const branding = config?.branding || user?.branding;
 
   useEffect(() => {
-    if (user?.branding) {
-      const { primaryColor, secondaryColor, accentColor } = user.branding;
+    if (branding) {
+      const { primaryColor, secondaryColor, accentColor } = branding;
       document.documentElement.style.setProperty('--primary-custom', primaryColor);
       document.documentElement.style.setProperty('--secondary-custom', secondaryColor);
       document.documentElement.style.setProperty('--accent-custom', accentColor);
     }
-  }, [user]);
+  }, [branding]);
 
   const handleLogin = (role: UserRole) => {
-    const name = role === UserRole.MENTOR ? "Expert Bruno" : "Aluno Lucas";
+    const name = role === UserRole.MENTOR ? (config?.branding.expertName || "Expert") : "Aluno";
     const newUser = Store.loginUser(name, role);
     setUser(newUser);
     
-    // Solicitar permissão de notificação no login se for aluno
     if (role === UserRole.STUDENT) {
       NotificationService.requestNotificationPermission();
+      
+      // Se não houver plano e estivermos num subdomínio com tracks, criamos um plano baseado na track
+      if (!plan && config && config.tracks.length > 0) {
+        const track = config.tracks[0];
+        const studentPlan: ChallengePlan = {
+          id: crypto.randomUUID(),
+          mentorId: 'system',
+          studentName: name,
+          niche: config.slug,
+          selectedAreas: [HealthArea.MENTAL, HealthArea.PHYSICAL, HealthArea.EMOTIONAL],
+          planTitle: track.name,
+          planDescription: track.description,
+          challenges: track.challenges.map(c => ({ ...c, completed: false, comments: [] })),
+          createdAt: new Date().toISOString(),
+          isGroupPlan: false,
+          methodology: 'METADESAFIOS'
+        };
+        Store.savePlan(studentPlan);
+        setPlan(studentPlan);
+      }
     }
   };
 
@@ -53,8 +85,8 @@ const App: React.FC = () => {
   };
 
   const handleWizardFinish = async (payload: GeneratePlanPayload) => {
-    if (!user || user.credits <= 0) {
-      alert("Créditos insuficientes. Adquira mais no painel de Identidade.");
+    if (!user || (user.credits <= 0 && config?.isAdminTenant)) {
+      alert("Créditos insuficientes.");
       return;
     }
     
@@ -82,23 +114,36 @@ const App: React.FC = () => {
         };
         
         Store.savePlan(newPlan);
-        const updatedUser = Store.deductCredit();
-        if (updatedUser) setUser(updatedUser);
+        if (config?.isAdminTenant) {
+          const updatedUser = Store.deductCredit();
+          if (updatedUser) setUser(updatedUser);
+        }
         setPlan(newPlan);
         setActiveTab('dashboard');
     } catch (error) {
         console.error("Erro na geração:", error);
-        alert("Erro ao gerar jornada. Verifique sua conexão.");
+        alert("Erro ao gerar jornada.");
     } finally {
         setIsGenerating(false);
     }
   };
 
+  if (tenantLoading) {
+    return (
+      <div className="min-h-screen bg-dark flex items-center justify-center">
+        <div className="text-center space-y-4">
+          <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto" />
+          <p className="text-slate-500 font-bold uppercase tracking-widest text-xs">Carregando Instância...</p>
+        </div>
+      </div>
+    );
+  }
+
   if (!user) {
     return <LandingPage onLogin={handleLogin} />;
   }
 
-  const branding = user.branding;
+  const isMentorMode = user.role === UserRole.MENTOR && config?.isAdminTenant;
 
   return (
     <div className="min-h-screen bg-dark text-slate-200 font-sans selection:bg-primary-custom selection:text-dark">
@@ -120,11 +165,11 @@ const App: React.FC = () => {
               <i className="ri-rocket-fill text-dark"></i>
             </div>
             <span className="font-mont font-black text-white text-lg">
-              {user.role === UserRole.MENTOR ? 'Mestre dos Desafios' : branding?.mentoryName || 'Jornada Hero'}
+              {branding?.mentoryName || 'Mestre dos Desafios'}
             </span>
           </div>
 
-          {user.role === UserRole.MENTOR && (
+          {isMentorMode && (
             <div className="hidden lg:flex bg-dark/50 p-1 rounded-lg border border-white/10 mx-8">
               <button onClick={() => setActiveTab('dashboard')} className={`px-4 py-1.5 rounded-md text-sm font-bold transition-all ${activeTab === 'dashboard' ? 'bg-white/10 text-white' : 'text-slate-400'}`}>Dashboard</button>
               <button onClick={() => setActiveTab('management')} className={`px-4 py-1.5 rounded-md text-sm font-bold transition-all ${activeTab === 'management' ? 'bg-white/10 text-white' : 'text-slate-400'}`}>Gestão</button>
@@ -137,7 +182,7 @@ const App: React.FC = () => {
             <div className="text-right hidden sm:block">
               <p className="text-sm font-bold text-white leading-none">{user.name}</p>
               <p className="text-[10px] uppercase font-black text-primary-custom">
-                {user.role === UserRole.MENTOR ? `${user.credits} Créditos` : 'Aluno Ativo'}
+                {isMentorMode ? `${user.credits} Créditos` : 'Jornada Ativa'}
               </p>
             </div>
             <button onClick={handleLogout} className="text-slate-500 hover:text-white transition-colors">
@@ -148,13 +193,13 @@ const App: React.FC = () => {
       </nav>
 
       <main className="max-w-7xl mx-auto px-6 py-8">
-        {user.role === UserRole.MENTOR && activeTab === 'settings' && <BrandingManager user={user} onUpdate={setUser} />}
-        {user.role === UserRole.MENTOR && activeTab === 'management' && <ManagementPanel />}
-        {user.role === UserRole.MENTOR && activeTab === 'insights' && plan && <InsightsPanel plan={plan} />}
+        {isMentorMode && activeTab === 'settings' && <BrandingManager user={user} onUpdate={setUser} />}
+        {isMentorMode && activeTab === 'management' && <ManagementPanel />}
+        {isMentorMode && activeTab === 'insights' && plan && <InsightsPanel plan={plan} />}
 
         {activeTab === 'dashboard' && (
           <>
-            {!plan && user.role === UserRole.MENTOR && (
+            {!plan && isMentorMode && (
               <AssessmentWizard onFinish={handleWizardFinish} isLoading={isGenerating} />
             )}
 
@@ -165,7 +210,7 @@ const App: React.FC = () => {
                     <h1 className="font-mont text-4xl font-black text-white mb-2">{plan.planTitle}</h1>
                     <p className="text-slate-400 max-w-2xl">{plan.planDescription}</p>
                   </div>
-                  {user.role === UserRole.MENTOR && (
+                  {isMentorMode && (
                     <button 
                       onClick={() => { if(confirm("Apagar jornada atual?")) { setPlan(null); Store.savePlan(null); } }}
                       className="bg-red-500/10 text-red-400 border border-red-500/20 px-6 py-3 rounded-2xl text-sm font-bold hover:bg-red-500 hover:text-white transition-all"

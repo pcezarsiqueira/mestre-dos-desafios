@@ -15,18 +15,29 @@ const getStripePublishableKey = () => {
 
 export const createCheckoutSession = async (packageId: string, userEmail: string) => {
   const apiKey = getStripePublishableKey();
+  const pkg = STRIPE_PACKAGES.find(p => p.id === packageId);
   
-  // Este log agora mostrará a chave REAL sendo utilizada no momento
-  console.log(`[Stripe] Iniciando checkout. API Key ativa: ${apiKey}`);
-  
-  return new Promise<{ url: string }>((resolve) => {
-    setTimeout(() => {
-      // Simulação de chamada ao backend Node.js que criaria a Session com a Secret Key
-      resolve({ url: 'https://checkout.stripe.com/pay/simulated_session' });
-    }, 1000);
-  });
+  // Log de segurança para o desenvolvedor
+  console.log(`[Stripe Checkout] Inicializando...`);
+  console.log(`[Stripe API Key]: ${apiKey.substring(0, 10)}...`);
+  console.log(`[Pacote]: ${pkg?.name} | [Email]: ${userEmail}`);
+
+  // Simulação de delay de rede
+  await new Promise(resolve => setTimeout(resolve, 1500));
+
+  // Simulação de uma URL real do Stripe Checkout
+  // Em um ambiente real, você faria um POST para seu backend Node/Express aqui
+  const sessionId = `cs_test_${Math.random().toString(36).substring(2, 15)}`;
+  const simulatedUrl = `https://checkout.stripe.com/pay/${sessionId}#package=${packageId}&key=${apiKey}`;
+
+  return { 
+    url: simulatedUrl,
+    sessionId: sessionId
+  };
 };
 
 export const verifyPaymentStatus = async (sessionId: string) => {
+  // Simula a verificação de webhook do Stripe
+  console.log(`[Stripe] Verificando status da sessão: ${sessionId}`);
   return { success: true, creditsToAdd: 20 };
 };

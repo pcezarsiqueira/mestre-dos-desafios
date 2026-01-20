@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { HealthArea, GeneratePlanPayload, WizardStepId } from '../types';
 import { 
   CheckCircle, ChevronRight, ChevronLeft, Loader2, Sparkles, 
-  BookOpen, Users, User, Star, Upload, Target, Brain, Heart, Zap, Smile, Briefcase, Coins
+  BookOpen, Users, User, Star, Upload, FileText, X, Brain, Heart, Zap, Smile, Briefcase, Coins
 } from 'lucide-react';
 
 interface AssessmentWizardProps {
@@ -13,7 +13,9 @@ interface AssessmentWizardProps {
 
 const AssessmentWizard: React.FC<AssessmentWizardProps> = ({ onFinish, isLoading }) => {
   const [step, setStep] = useState<WizardStepId>('welcome');
-  // Fixed initialization to match updated GeneratePlanPayload interface
+  const [fileName, setFileName] = useState<string | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+
   const [payload, setPayload] = useState<GeneratePlanPayload>({
     mentor_profile: '',
     transformation_type: '',
@@ -35,6 +37,27 @@ const AssessmentWizard: React.FC<AssessmentWizardProps> = ({ onFinish, isLoading
     setPayload(prev => ({ ...prev, ...updates }));
   };
 
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.type !== 'application/pdf') {
+      alert("Por favor, selecione um arquivo PDF.");
+      return;
+    }
+
+    setFileName(file.name);
+    setIsUploading(true);
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      const base64 = (reader.result as string).split(',')[1];
+      handleUpdate({ pdf_base64: base64, has_material: true });
+      setIsUploading(false);
+    };
+    reader.readAsDataURL(file);
+  };
+
   const next = (nextStep: WizardStepId) => {
     setStep(nextStep);
     window.scrollTo(0, 0);
@@ -49,7 +72,7 @@ const AssessmentWizard: React.FC<AssessmentWizardProps> = ({ onFinish, isLoading
         </div>
         <h2 className="font-mont text-3xl font-black text-white mb-4">Arquitetando sua Jornada...</h2>
         <p className="text-slate-400 max-w-md mx-auto text-lg">
-          Aplicando o método <span className="text-primary font-bold">METADESAFIOS</span> e estruturando os 3 atos da jornada de {payload.student_name}.
+          Lendo seu material e aplicando o método <span className="text-primary font-bold">METADESAFIOS</span> para {payload.student_name}.
         </p>
       </div>
     );
@@ -62,7 +85,7 @@ const AssessmentWizard: React.FC<AssessmentWizardProps> = ({ onFinish, isLoading
       {step === 'welcome' && (
         <div className="bg-card/80 backdrop-blur-xl p-10 md:p-16 rounded-[40px] border border-white/10 shadow-2xl text-center space-y-8 animate-in fade-in zoom-in-95 duration-500">
            <div className="w-20 h-20 bg-gradient-to-br from-primary to-[#fdd831] rounded-full flex items-center justify-center mx-auto text-dark shadow-xl">
-             <Star size={40} weight="fill" />
+             <Star size={40} className="fill-current" />
            </div>
            <div className="space-y-4">
              <h2 className="font-mont text-4xl font-black text-white">Seu interesse é um sinal de que quer avançar.</h2>
@@ -170,101 +193,137 @@ const AssessmentWizard: React.FC<AssessmentWizardProps> = ({ onFinish, isLoading
         </div>
       )}
 
-      {/* Escolha de Conteúdo (Apenas para Grupo/Formação) */}
+      {/* Escolha de Conteúdo */}
       {step === 'content-choice' && (
         <div className="bg-card p-10 rounded-[32px] border border-white/10 space-y-8 animate-in zoom-in-95">
-          <h3 className="font-mont text-2xl font-black text-white text-center">Deseja criar um desafio baseado em seu material de ensino?</h3>
-          <p className="text-center text-slate-400">Pode ser uma apresentação, ebook, roteiro de aulas, etc.</p>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <h3 className="font-mont text-2xl font-black text-white text-center">Deseja criar um desafio baseado em seu material (Ebook, PDF)?</h3>
+          <p className="text-center text-slate-400">Nossa IA consegue processar seu PDF para manter a essência do seu método.</p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <button 
               onClick={() => { handleUpdate({ has_material: true }); next('material-upload'); }}
-              className="p-6 bg-dark border border-white/10 rounded-2xl hover:border-primary transition-all group"
+              className="p-8 bg-dark border border-white/10 rounded-2xl hover:border-primary transition-all group text-center"
             >
-              <div className="w-12 h-12 bg-primary/10 text-primary rounded-xl flex items-center justify-center mx-auto mb-4 group-hover:bg-primary group-hover:text-dark">
-                <Upload />
+              <div className="w-16 h-16 bg-primary/10 text-primary rounded-2xl flex items-center justify-center mx-auto mb-4 group-hover:bg-primary group-hover:text-dark transition-all">
+                <FileText size={32} />
               </div>
-              <p className="font-bold text-white text-center">Sim, possuo material</p>
+              <p className="font-black text-white text-lg">Sim, subir PDF/Ebook</p>
+              <p className="text-xs text-slate-500 mt-2 italic">A IA lerá seu arquivo completo</p>
             </button>
             <button 
               onClick={() => { handleUpdate({ has_material: false }); next('avatar-creation'); }}
-              className="p-6 bg-dark border border-white/10 rounded-2xl hover:border-white/30 transition-all group"
+              className="p-8 bg-dark border border-white/10 rounded-2xl hover:border-white/30 transition-all group text-center"
             >
-               <div className="w-12 h-12 bg-white/5 text-slate-500 rounded-xl flex items-center justify-center mx-auto mb-4">
-                <i className="ri-close-line text-2xl"></i>
+               <div className="w-16 h-16 bg-white/5 text-slate-500 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                <Brain size={32} />
               </div>
-              <p className="font-bold text-white text-center">Não, prefiro IA</p>
-            </button>
-            <button 
-              onClick={() => { handleUpdate({ has_material: false }); next('avatar-creation'); }}
-              className="p-6 bg-dark border border-white/10 rounded-2xl hover:border-white/30 transition-all group"
-            >
-               <div className="w-12 h-12 bg-white/5 text-slate-500 rounded-xl flex items-center justify-center mx-auto mb-4">
-                <i className="ri-error-warning-line text-2xl"></i>
-              </div>
-              <p className="font-bold text-white text-center">Não possuo material</p>
+              <p className="font-black text-white text-lg">Não, criar com IA pura</p>
+              <p className="text-xs text-slate-500 mt-2 italic">IA usará dados do avatar apenas</p>
             </button>
           </div>
         </div>
       )}
 
-      {/* Upload de Material */}
+      {/* Upload de Material (Melhorado para PDF) */}
       {step === 'material-upload' && (
         <div className="space-y-6 animate-in slide-in-from-right-4">
            <div className="text-center">
-             <h3 className="font-mont text-3xl font-black text-white mb-2">Seu Conhecimento, Nosso Guia.</h3>
-             <p className="text-slate-500">Cole o conteúdo do seu material ou faça um resumo detalhado.</p>
+             <h3 className="font-mont text-3xl font-black text-white mb-2">Upload de Inteligência</h3>
+             <p className="text-slate-500">Suba seu ebook ou cole o conteúdo principal.</p>
            </div>
-           <textarea 
-             className="w-full h-64 bg-dark border-2 border-white/10 rounded-3xl p-6 text-white outline-none focus:border-primary transition-all font-mono text-sm"
-             placeholder="Ex: Cole aqui o índice do seu curso, capítulos do seu ebook ou os tópicos que você ensina..."
-             value={payload.materials_summary}
-             onChange={e => handleUpdate({ materials_summary: e.target.value })}
-           />
-           <div className="flex justify-between">
+           
+           <div className="grid grid-cols-1 gap-6">
+              {!fileName ? (
+                <div className="relative border-2 border-dashed border-white/10 rounded-[32px] p-12 text-center hover:border-primary transition-all group bg-dark/40 cursor-pointer">
+                  <input 
+                    type="file" 
+                    accept="application/pdf"
+                    onChange={handleFileUpload}
+                    className="absolute inset-0 opacity-0 cursor-pointer"
+                  />
+                  <div className="w-16 h-16 bg-white/5 rounded-2xl flex items-center justify-center mx-auto mb-4 text-slate-500 group-hover:text-primary transition-colors">
+                    <Upload size={32} />
+                  </div>
+                  <h4 className="text-white font-bold text-lg">Selecionar PDF do Ebook</h4>
+                  <p className="text-slate-500 text-sm mt-2">Arraste aqui ou clique para buscar</p>
+                </div>
+              ) : (
+                <div className="bg-primary/5 border border-primary/20 p-8 rounded-[32px] flex items-center justify-between animate-in zoom-in-95">
+                  <div className="flex items-center gap-4">
+                    <div className="w-14 h-14 bg-primary text-dark rounded-2xl flex items-center justify-center shadow-lg">
+                      <FileText size={28} />
+                    </div>
+                    <div>
+                      <p className="font-black text-white">{fileName}</p>
+                      <p className="text-xs text-primary font-bold uppercase tracking-widest">Arquivo Pronto para Processar</p>
+                    </div>
+                  </div>
+                  <button 
+                    onClick={() => { setFileName(null); handleUpdate({ pdf_base64: undefined }); }}
+                    className="p-3 bg-white/5 text-white/40 hover:text-red-400 rounded-xl transition-colors"
+                  >
+                    <X />
+                  </button>
+                </div>
+              )}
+
+              <div className="relative">
+                <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-white/5"></div></div>
+                <div className="relative flex justify-center text-xs uppercase font-black text-slate-600 tracking-[0.3em]"><span className="bg-dark px-4">Ou Cole Texto Abaixo</span></div>
+              </div>
+
+              <textarea 
+                className="w-full h-40 bg-dark border border-white/10 rounded-3xl p-6 text-white outline-none focus:border-primary transition-all font-mono text-xs"
+                placeholder="Se preferir, cole o resumo ou roteiro aqui..."
+                value={payload.materials_summary}
+                onChange={e => handleUpdate({ materials_summary: e.target.value })}
+              />
+           </div>
+
+           <div className="flex justify-between items-center pt-6">
              <button onClick={() => next('content-choice')} className="text-slate-500 font-bold px-6">Voltar</button>
              <button 
-               disabled={!payload.materials_summary}
+               disabled={!payload.pdf_base64 && !payload.materials_summary || isUploading}
                onClick={() => next('avatar-creation')} 
-               className="bg-primary text-dark font-black px-10 py-4 rounded-2xl disabled:opacity-50"
+               className="bg-primary text-dark font-black px-12 py-4 rounded-2xl disabled:opacity-50 shadow-xl hover:scale-105 transition-all flex items-center gap-2"
              >
-               Processar Material <ChevronRight className="inline" />
+               {isUploading ? <Loader2 className="animate-spin" /> : 'Confirmar Material'} <ChevronRight />
              </button>
            </div>
         </div>
       )}
 
-      {/* Criação de Avatar (As perguntas de perfil do aluno) */}
+      {/* Criação de Avatar */}
       {step === 'avatar-creation' && (
         <div className="space-y-8 animate-in slide-in-from-right-4">
            <div className="text-center">
              <h3 className="font-mont text-3xl font-black text-white mb-2">Quem vamos transformar hoje?</h3>
-             <p className="text-slate-500">Defina o avatar (público-alvo) para que a IA personalize a linguagem.</p>
+             <p className="text-slate-500">Defina o avatar para que a IA personalize a linguagem baseada no seu material.</p>
            </div>
            
            <div className="grid md:grid-cols-2 gap-6">
               <div className="space-y-2">
-                <label className="text-sm font-bold text-slate-400 uppercase">Nome do Avatar</label>
+                <label className="text-xs font-black text-slate-500 uppercase tracking-widest">Nome do Avatar</label>
                 <input 
-                  className="w-full bg-dark border border-white/10 rounded-xl p-4 text-white" 
+                  className="w-full bg-dark border border-white/10 rounded-xl p-4 text-white focus:border-primary outline-none" 
                   placeholder="Ex: Empreendedores Ansiosos" 
                   value={payload.student_name}
                   onChange={e => handleUpdate({ student_name: e.target.value })}
                 />
               </div>
               <div className="space-y-2">
-                <label className="text-sm font-bold text-slate-400 uppercase">Interesses / Hobbies</label>
+                <label className="text-xs font-black text-slate-500 uppercase tracking-widest">Interesses / Hobbies</label>
                 <input 
-                  className="w-full bg-dark border border-white/10 rounded-xl p-4 text-white" 
+                  className="w-full bg-dark border border-white/10 rounded-xl p-4 text-white focus:border-primary outline-none" 
                   placeholder="Ex: Tecnologia, Viagens, Meditação" 
                   value={payload.student_interests}
                   onChange={e => handleUpdate({ student_interests: e.target.value })}
                 />
               </div>
               <div className="md:col-span-2 space-y-2">
-                <label className="text-sm font-bold text-slate-400 uppercase">Dores, Problemas e Consequências</label>
+                <label className="text-xs font-black text-slate-500 uppercase tracking-widest">Dores e Problemas Atuais</label>
                 <textarea 
-                  className="w-full h-32 bg-dark border border-white/10 rounded-xl p-4 text-white" 
-                  placeholder="O que tira o sono do seu aluno hoje? Quais os problemas que ele enfrenta se não mudar?" 
+                  className="w-full h-32 bg-dark border border-white/10 rounded-xl p-4 text-white focus:border-primary outline-none" 
+                  placeholder="O que tira o sono do seu aluno hoje?" 
                   value={payload.student_profile}
                   onChange={e => handleUpdate({ student_profile: e.target.value })}
                 />
@@ -272,7 +331,7 @@ const AssessmentWizard: React.FC<AssessmentWizardProps> = ({ onFinish, isLoading
            </div>
 
            <div className="flex justify-between mt-8">
-             <button onClick={() => next(payload.isGroupPlan ? 'content-choice' : 'method')} className="text-slate-500 font-bold px-6">Voltar</button>
+             <button onClick={() => next(payload.has_material ? 'material-upload' : 'content-choice')} className="text-slate-500 font-bold px-6">Voltar</button>
              <button 
                disabled={!payload.student_name || !payload.student_profile}
                onClick={() => next('health-areas')} 
@@ -302,7 +361,7 @@ const AssessmentWizard: React.FC<AssessmentWizardProps> = ({ onFinish, isLoading
                       if (isSelected) handleUpdate({ health_areas: payload.health_areas.filter(a => a !== area) });
                       else if (payload.health_areas.length < 7) handleUpdate({ health_areas: [...payload.health_areas, area] });
                     }}
-                    className={`p-4 rounded-2xl border-2 flex items-center gap-4 transition-all ${isSelected ? 'border-primary bg-primary/10 text-white' : 'border-white/10 bg-dark text-slate-500'}`}
+                    className={`p-4 rounded-2xl border-2 flex items-center gap-4 transition-all ${isSelected ? 'border-primary bg-primary/10 text-white shadow-lg shadow-primary/5' : 'border-white/10 bg-dark text-slate-500'}`}
                   >
                     <div className={`p-2 rounded-lg ${isSelected ? 'bg-primary text-dark' : 'bg-white/5'}`}>{getAreaIcon(area)}</div>
                     <span className="font-bold">{area}</span>
