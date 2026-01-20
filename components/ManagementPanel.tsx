@@ -35,9 +35,9 @@ const ManagementPanel: React.FC = () => {
   const [activeAdminTab, setActiveAdminTab] = useState<'my_portal' | 'users' | 'profile'>('my_portal');
 
   useEffect(() => {
-    setMentorships(Store.getMentorships());
-    setStudents(Store.getStudents());
-    setGroups(Store.getGroups());
+    setMentorships(Store.getMentorships() || []);
+    setStudents(Store.getStudents() || []);
+    setGroups(Store.getGroups() || []);
     Store.getPlan().then(p => {
         setPlan(p);
         if (p) setSlug(currentUser?.name.toLowerCase().replace(/\s/g, '-') || '');
@@ -49,9 +49,10 @@ const ManagementPanel: React.FC = () => {
     setIsLoadingUsers(true);
     try {
         const users = await Store.fetchAllUsers();
-        setAllUsers(users);
+        setAllUsers(Array.isArray(users) ? users : []);
     } catch (e) {
-        console.error(e);
+        console.error("Erro ao carregar usuários:", e);
+        setAllUsers([]);
     } finally {
         setIsLoadingUsers(false);
     }
@@ -69,33 +70,49 @@ const ManagementPanel: React.FC = () => {
 
   const handleUpdateUser = async () => {
     if (!showUserModal) return;
-    const success = await Store.updateUserInfo(showUserModal.id, editFormData);
-    if (success) {
-      alert("Usuário atualizado com sucesso!");
-      loadAllUsers();
-      setShowUserModal(null);
-    } else {
-      alert("Erro ao atualizar usuário.");
+    try {
+        const success = await Store.updateUserInfo(showUserModal.id, editFormData);
+        if (success) {
+            alert("Usuário atualizado com sucesso!");
+            loadAllUsers();
+            setShowUserModal(null);
+        } else {
+            alert("Erro ao atualizar usuário.");
+        }
+    } catch (error) {
+        alert("Erro de conexão com o servidor.");
     }
   };
 
   const handleToggleBlock = async (user: User) => {
     if (!confirm(`Tem certeza que deseja ${user.isBlocked ? 'desbloquear' : 'bloquear'} ${user.name}?`)) return;
-    const success = await Store.toggleUserBlockStatus(user.id, !user.isBlocked);
-    if (success) loadAllUsers();
+    try {
+        const success = await Store.toggleUserBlockStatus(user.id, !user.isBlocked);
+        if (success) loadAllUsers();
+    } catch (error) {
+        alert("Erro ao alterar status de bloqueio.");
+    }
   };
 
   const handleDeleteUser = async (id: string) => {
     if (!confirm("AÇÃO IRREVERSÍVEL: Deseja remover permanentemente este usuário e todos os seus dados?")) return;
-    const success = await Store.deleteUserAccount(id);
-    if (success) loadAllUsers();
+    try {
+        const success = await Store.deleteUserAccount(id);
+        if (success) loadAllUsers();
+    } catch (error) {
+        alert("Erro ao remover usuário.");
+    }
   };
 
   const handleAddCredits = async (id: string, amount: number) => {
-    const success = await Store.modifyUserCredits(id, amount);
-    if (success) {
-        loadAllUsers();
-        if (showUserModal) setShowUserModal({...showUserModal, credits: showUserModal.credits + amount});
+    try {
+        const success = await Store.modifyUserCredits(id, amount);
+        if (success) {
+            loadAllUsers();
+            if (showUserModal) setShowUserModal(prev => prev ? {...prev, credits: prev.credits + amount} : null);
+        }
+    } catch (error) {
+        alert("Erro ao modificar créditos.");
     }
   };
 
@@ -134,7 +151,7 @@ const ManagementPanel: React.FC = () => {
             <div className="flex items-center justify-between mb-8">
                 <div className="flex items-center gap-3">
                     <ShieldAlert className="text-primary" size={24} />
-                    <h3 className="text-2xl font-black text-white">Gestão Central de Usuários</h3>
+                    <h3 className="text-2xl font-black text-white">Painel do Administrador</h3>
                 </div>
                 <button onClick={loadAllUsers} className="flex items-center gap-2 px-4 py-2 bg-white/5 rounded-xl hover:bg-white/10 text-white transition-all text-xs font-bold">
                     {isLoadingUsers ? <Loader2 className="animate-spin w-4 h-4" /> : "Sincronizar"}
@@ -154,12 +171,12 @@ const ManagementPanel: React.FC = () => {
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-white/5">
-                        {allUsers.map(user => (
+                        {allUsers?.length > 0 ? allUsers.map(user => (
                             <tr key={user.id} className="group hover:bg-white/5 transition-all">
                                 <td className="py-4 pl-4">
                                     <div className="flex items-center gap-3">
-                                        <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary font-black">
-                                            {user.name.charAt(0)}
+                                        <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary font-black uppercase">
+                                            {user.name?.charAt(0) || 'U'}
                                         </div>
                                         <div>
                                             <p className="text-sm font-bold text-white">{user.name}</p>
@@ -183,7 +200,13 @@ const ManagementPanel: React.FC = () => {
                                     <button onClick={() => handleDeleteUser(user.id)} className="p-2 bg-white/5 text-slate-600 hover:text-red-500 rounded-lg transition-all" title="Excluir Permanentemente"><Trash2 size={14}/></button>
                                 </td>
                             </tr>
-                        ))}
+                        )) : (
+                            <tr>
+                                <td colSpan={6} className="py-10 text-center text-slate-500 text-sm italic">
+                                    {isLoadingUsers ? 'Carregando usuários...' : 'Nenhum usuário encontrado.'}
+                                </td>
+                            </tr>
+                        )}
                     </tbody>
                 </table>
             </div>
@@ -196,25 +219,25 @@ const ManagementPanel: React.FC = () => {
                 <div className="w-20 h-20 bg-primary/10 rounded-3xl flex items-center justify-center text-primary mx-auto mb-4 border border-primary/20">
                     <Settings size={40} />
                 </div>
-                <h3 className="text-2xl font-black text-white">Meus Dados Administrativos</h3>
-                <p className="text-slate-500 text-sm">Atualize seu e-mail e senha mestra.</p>
+                <h3 className="text-2xl font-black text-white">Configurações do Admin</h3>
+                <p className="text-slate-500 text-sm">Atualize seus dados de acesso mestre.</p>
             </div>
 
             <div className="space-y-6">
                 <div>
-                    <label className="block text-xs font-black text-slate-500 uppercase mb-2">Nome Completo</label>
+                    <label className="block text-xs font-black text-slate-500 uppercase mb-2">Seu Nome</label>
                     <input type="text" className="w-full bg-dark border border-white/10 rounded-2xl p-5 text-white outline-none focus:border-primary" defaultValue={currentUser?.name} />
                 </div>
                 <div>
-                    <label className="block text-xs font-black text-slate-500 uppercase mb-2">E-mail</label>
+                    <label className="block text-xs font-black text-slate-500 uppercase mb-2">E-mail de Administrador</label>
                     <input type="email" className="w-full bg-dark border border-white/10 rounded-2xl p-5 text-white outline-none focus:border-primary" defaultValue={currentUser?.email} />
                 </div>
                 <div>
-                    <label className="block text-xs font-black text-slate-500 uppercase mb-2">Nova Senha</label>
+                    <label className="block text-xs font-black text-slate-500 uppercase mb-2">Alterar Senha</label>
                     <input type="password" placeholder="••••••••" className="w-full bg-dark border border-white/10 rounded-2xl p-5 text-white outline-none focus:border-primary" />
                 </div>
                 <button className="w-full py-5 bg-primary text-dark font-black rounded-2xl shadow-xl hover:scale-105 transition-all flex items-center justify-center gap-2">
-                    <Save size={20} /> Salvar Perfil
+                    <Save size={20} /> Salvar Meus Dados
                 </button>
             </div>
         </div>
@@ -230,18 +253,18 @@ const ManagementPanel: React.FC = () => {
                           <Globe size={32} />
                         </div>
                         <div>
-                          <h3 className="font-mont text-2xl font-black text-white">Configuração de Domínio</h3>
-                          <p className="text-slate-400 text-sm">Publique sua mentoria em um endereço único.</p>
+                          <h3 className="font-mont text-2xl font-black text-white">Customização de Domínio</h3>
+                          <p className="text-slate-400 text-sm">Defina o endereço público da sua plataforma.</p>
                         </div>
                       </div>
                       <div className="flex items-center gap-2 px-6 py-3 bg-emerald-500/10 border border-emerald-500/20 text-emerald-500 rounded-full text-[10px] font-black uppercase tracking-widest">
-                        <Rocket size={14} /> Ativo no Cluster
+                        <Rocket size={14} /> Redes Ativas
                       </div>
                    </div>
                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
                       <div className="space-y-6">
                         <div>
-                          <label className="block text-xs font-black text-slate-500 uppercase tracking-widest mb-3">Subdomínio Desejado</label>
+                          <label className="block text-xs font-black text-slate-500 uppercase tracking-widest mb-3">Subdomínio</label>
                           <div className="flex items-center gap-2">
                             <input 
                               type="text"
@@ -255,17 +278,17 @@ const ManagementPanel: React.FC = () => {
                         </div>
                         <div className="p-6 bg-yellow-500/5 border border-yellow-500/10 rounded-2xl flex gap-4">
                           <AlertTriangle className="text-yellow-500 shrink-0" size={20} />
-                          <p className="text-xs text-slate-400 leading-relaxed">Isso criará uma instância isolada com seus planos e branding.</p>
+                          <p className="text-xs text-slate-400 leading-relaxed">Este endereço será usado por seus alunos para acessar os desafios personalizados.</p>
                         </div>
                       </div>
                       <div className="bg-dark p-8 rounded-3xl border border-white/5 flex flex-col justify-center items-center text-center space-y-6">
-                         <p className="text-slate-500 text-xs font-bold uppercase tracking-widest">Link de Acesso Direto</p>
+                         <p className="text-slate-500 text-xs font-bold uppercase tracking-widest">URL do Portal</p>
                          <div className="text-2xl font-black text-white flex items-center gap-2 truncate max-w-full">
                            <span className="text-primary">{slug || '...'}</span>
                            <span className="opacity-40">.mestredosdesafios.com.br</span>
                          </div>
                          <button onClick={handleSaveSubdomain} disabled={!slug || isSaving} className="px-8 py-4 bg-primary text-dark rounded-2xl font-black hover:scale-105 transition-all shadow-xl flex items-center gap-2">
-                           {isSaving ? <Loader2 className="animate-spin" /> : <Globe size={20} />} Publicar Agora
+                           {isSaving ? <Loader2 className="animate-spin" /> : <Globe size={20} />} Publicar Tenant
                          </button>
                       </div>
                    </div>
@@ -284,8 +307,8 @@ const ManagementPanel: React.FC = () => {
                   </button>
                   
                   <div className="flex items-center gap-6 mb-8 border-b border-white/5 pb-8">
-                      <div className="w-20 h-20 bg-primary/10 rounded-3xl flex items-center justify-center text-primary font-black text-3xl">
-                        {showUserModal.name.charAt(0)}
+                      <div className="w-20 h-20 bg-primary/10 rounded-3xl flex items-center justify-center text-primary font-black text-3xl uppercase">
+                        {showUserModal.name?.charAt(0) || 'U'}
                       </div>
                       <div>
                         <h3 className="text-3xl font-black text-white">{showUserModal.name}</h3>
@@ -302,31 +325,35 @@ const ManagementPanel: React.FC = () => {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                     {/* Dados de Perfil */}
                     <div className="space-y-6">
-                      <h4 className="text-xs font-black text-slate-500 uppercase tracking-widest border-l-2 border-primary pl-3">Perfil & Acesso</h4>
+                      <h4 className="text-xs font-black text-slate-500 uppercase tracking-widest border-l-2 border-primary pl-3">Perfil & Segurança</h4>
                       <div>
-                        <label className="block text-[10px] font-black text-slate-600 uppercase mb-2">Nome do Expert</label>
+                        <label className="block text-[10px] font-black text-slate-600 uppercase mb-2">Nome</label>
                         <input type="text" className="w-full bg-dark border border-white/10 rounded-xl p-4 text-sm text-white focus:border-primary outline-none" value={editFormData.name} onChange={e => setEditFormData({...editFormData, name: e.target.value})} />
                       </div>
                       <div>
-                        <label className="block text-[10px] font-black text-slate-600 uppercase mb-2">E-mail de Login</label>
+                        <label className="block text-[10px] font-black text-slate-600 uppercase mb-2">E-mail</label>
                         <input type="email" className="w-full bg-dark border border-white/10 rounded-xl p-4 text-sm text-white focus:border-primary outline-none" value={editFormData.email} onChange={e => setEditFormData({...editFormData, email: e.target.value})} />
                       </div>
                       <div>
-                        <label className="block text-[10px] font-black text-slate-600 uppercase mb-2">Role / Permissão</label>
+                        <label className="block text-[10px] font-black text-slate-600 uppercase mb-2">Nível de Acesso</label>
                         <select className="w-full bg-dark border border-white/10 rounded-xl p-4 text-sm text-white focus:border-primary outline-none" value={editFormData.role} onChange={e => setEditFormData({...editFormData, role: e.target.value as UserRole})}>
-                          <option value={UserRole.MENTOR}>MENTOR (Padrão)</option>
+                          <option value={UserRole.MENTOR}>MENTOR</option>
                           <option value={UserRole.STUDENT}>ALUNO</option>
                           <option value={UserRole.ADMIN}>ADMINISTRADOR</option>
                         </select>
                       </div>
+                      <div>
+                        <label className="block text-[10px] font-black text-slate-600 uppercase mb-2">Redefinir Senha</label>
+                        <input type="password" placeholder="Nova senha se desejar mudar" className="w-full bg-dark border border-white/10 rounded-xl p-4 text-sm text-white focus:border-primary outline-none" value={editFormData.password} onChange={e => setEditFormData({...editFormData, password: e.target.value})} />
+                      </div>
                       <button onClick={handleUpdateUser} className="w-full py-4 bg-white text-dark font-black rounded-xl hover:scale-[1.02] transition-all flex items-center justify-center gap-2 text-sm shadow-xl">
-                        <Save size={18} /> Aplicar Alterações
+                        <Save size={18} /> Salvar Perfil
                       </button>
                     </div>
 
                     {/* Finanças e Créditos */}
                     <div className="space-y-6">
-                      <h4 className="text-xs font-black text-slate-500 uppercase tracking-widest border-l-2 border-emerald-500 pl-3">Finanças & Gamificação</h4>
+                      <h4 className="text-xs font-black text-slate-500 uppercase tracking-widest border-l-2 border-emerald-500 pl-3">Saldo & Gestão</h4>
                       
                       <div className="grid grid-cols-2 gap-4">
                         <div className="bg-dark/50 p-5 rounded-2xl border border-white/5 text-center">
@@ -334,13 +361,13 @@ const ManagementPanel: React.FC = () => {
                           <p className="text-2xl font-black text-primary">{showUserModal.credits}</p>
                         </div>
                         <div className="bg-dark/50 p-5 rounded-2xl border border-white/5 text-center">
-                          <p className="text-[10px] font-black text-slate-500 uppercase mb-1">Investimento</p>
-                          <p className="text-sm font-black text-white">R$ {Number(showUserModal.totalSpent || 0).toLocaleString('pt-BR')}</p>
+                          <p className="text-[10px] font-black text-slate-500 uppercase mb-1">Total Pago</p>
+                          <p className="text-sm font-black text-white">R$ {Number(showUserModal.totalSpent || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
                         </div>
                       </div>
 
                       <div className="space-y-3">
-                        <p className="text-[10px] font-black text-slate-500 uppercase text-center">Ajuste de Saldo Manual</p>
+                        <p className="text-[10px] font-black text-slate-500 uppercase text-center">Modificar Créditos</p>
                         <div className="flex gap-2">
                             <button onClick={() => handleAddCredits(showUserModal.id, 1)} className="flex-1 py-3 bg-emerald-500/10 text-emerald-500 rounded-xl font-bold border border-emerald-500/20 hover:bg-emerald-500 hover:text-dark transition-all">+1</button>
                             <button onClick={() => handleAddCredits(showUserModal.id, 5)} className="flex-1 py-3 bg-emerald-500/10 text-emerald-500 rounded-xl font-bold border border-emerald-500/20 hover:bg-emerald-500 hover:text-dark transition-all">+5</button>
@@ -350,10 +377,10 @@ const ManagementPanel: React.FC = () => {
 
                       <div className="pt-6 border-t border-white/5 space-y-3">
                         <button onClick={() => handleToggleBlock(showUserModal)} className={`w-full py-4 rounded-xl font-black text-xs uppercase tracking-widest transition-all ${showUserModal.isBlocked ? 'bg-emerald-500/20 text-emerald-500 border border-emerald-500/30' : 'bg-red-500/20 text-red-500 border border-red-500/30'}`}>
-                            {showUserModal.isBlocked ? 'Ativar Acesso' : 'Bloquear Acesso'}
+                            {showUserModal.isBlocked ? 'Reativar Conta' : 'Suspender Acesso'}
                         </button>
                         <button onClick={() => { handleDeleteUser(showUserModal.id); setShowUserModal(null); }} className="w-full py-4 text-slate-600 hover:text-red-500 text-xs font-black uppercase tracking-widest transition-all">
-                            Excluir Registro
+                            Apagar Permanentemente
                         </button>
                       </div>
                     </div>

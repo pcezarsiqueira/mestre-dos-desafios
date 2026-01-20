@@ -37,39 +37,44 @@ const Dashboard: React.FC<DashboardProps> = ({ plan, onUpdate, isMentorView }) =
   };
 
   const progress = useMemo(() => {
-    const total = plan.challenges.length;
-    const completed = plan.challenges.filter(c => c.completed).length;
+    const challenges = plan?.challenges || [];
+    const total = challenges.length;
+    if (total === 0) return 0;
+    const completed = challenges.filter(c => c.completed).length;
     return Math.round((completed / total) * 100);
-  }, [plan.challenges]);
+  }, [plan?.challenges]);
 
   const totalXP = useMemo(() => {
-    return plan.challenges.filter(c => c.completed).reduce((acc, curr) => acc + curr.xp, 0);
-  }, [plan.challenges]);
+    const challenges = plan?.challenges || [];
+    return challenges.filter(c => c.completed).reduce((acc, curr) => acc + (curr.xp || 0), 0);
+  }, [plan?.challenges]);
 
   const acts: Record<number, ActGroup> = useMemo(() => {
+    const challenges = plan?.challenges || [];
     return {
-      1: { title: 'ATO 1: Mundo Comum & Diagnóstico', desc: 'Foco em clareza, crenças e primeira vitória.', challenges: plan.challenges.filter(c => c.day >= 1 && c.day <= 7) },
-      2: { title: 'ATO 2: O Chamado & Conflito', desc: 'Enfrentando as travas e aumentando a exposição.', challenges: plan.challenges.filter(c => c.day >= 8 && c.day <= 13) },
-      3: { title: 'ATO 3: A Grande Transformação', desc: 'Consolidação, prova real e nova identidade.', challenges: plan.challenges.filter(c => c.day >= 14 && c.day <= 21) },
+      1: { title: 'ATO 1: Mundo Comum & Diagnóstico', desc: 'Foco em clareza, crenças e primeira vitória.', challenges: challenges.filter(c => c.day >= 1 && c.day <= 7) },
+      2: { title: 'ATO 2: O Chamado & Conflito', desc: 'Enfrentando as travas e aumentando a exposição.', challenges: challenges.filter(c => c.day >= 8 && c.day <= 13) },
+      3: { title: 'ATO 3: A Grande Transformação', desc: 'Consolidação, prova real e nova identidade.', challenges: challenges.filter(c => c.day >= 14 && c.day <= 21) },
     };
-  }, [plan.challenges]);
+  }, [plan?.challenges]);
 
   const chartData = useMemo(() => {
     const weights: Record<string, number> = {};
     Object.values(HealthArea).forEach(area => weights[area] = 0);
-    plan.challenges.forEach(c => {
+    const challenges = plan?.challenges || [];
+    challenges.forEach(c => {
       if (c.health_area_weights) {
         Object.entries(c.health_area_weights).forEach(([area, weight]) => {
-          if (weights[area] !== undefined) weights[area] += Number(weight);
+          if (weights[area] !== undefined) weights[area] += Number(weight || 0);
         });
       }
     });
     return Object.keys(weights).map(area => ({
       subject: area,
       A: weights[area],
-      fullMark: Math.max(...Object.values(weights)) || 10
+      fullMark: Math.max(...Object.values(weights), 10)
     }));
-  }, [plan.challenges]);
+  }, [plan?.challenges]);
 
   const handleAddComment = (day: number) => {
     if (!commentText[day]) return;
@@ -93,7 +98,7 @@ const Dashboard: React.FC<DashboardProps> = ({ plan, onUpdate, isMentorView }) =
       <div className="lg:col-span-2 space-y-10">
         
         {/* Mapa da Transformação IA */}
-        {plan.transformationMapping && (
+        {plan?.transformationMapping && (
           <div className={`bg-card p-1 rounded-[40px] border border-white/10 overflow-hidden transition-all duration-700 ${showMapping ? 'max-h-[1000px]' : 'max-h-20'}`}>
              <div className="bg-dark/40 p-8 rounded-[38px] relative overflow-hidden">
                 <div className="absolute top-0 right-0 p-8">
@@ -170,7 +175,7 @@ const Dashboard: React.FC<DashboardProps> = ({ plan, onUpdate, isMentorView }) =
           </div>
           <div className="bg-card/50 backdrop-blur-sm p-5 rounded-[24px] border border-white/5 text-center shadow-xl">
              <p className="text-[10px] text-slate-500 uppercase font-black tracking-widest mb-1">Check-ins</p>
-             <p className="text-2xl font-black text-white">{plan.challenges.filter(c => c.completed).length}/21</p>
+             <p className="text-2xl font-black text-white">{(plan?.challenges || []).filter(c => c.completed).length}/21</p>
           </div>
         </div>
 
@@ -229,6 +234,10 @@ const Dashboard: React.FC<DashboardProps> = ({ plan, onUpdate, isMentorView }) =
                     fill="var(--primary-custom)"
                     fillOpacity={0.4}
                   />
+                  <Tooltip 
+                    contentStyle={{ backgroundColor: '#121125', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.1)' }}
+                    itemStyle={{ color: '#fe7501', fontSize: '12px', fontWeight: 'bold' }}
+                  />
                 </RadarChart>
               </ResponsiveContainer>
            </div>
@@ -239,6 +248,7 @@ const Dashboard: React.FC<DashboardProps> = ({ plan, onUpdate, isMentorView }) =
 };
 
 const ChallengeCard = ({ challenge, isMentorView, onToggle, onAddComment, commentValue, onCommentChange }: any) => {
+  const instructions = challenge?.instructions || [];
   return (
     <div className={`bg-card/60 backdrop-blur-sm rounded-[32px] border overflow-hidden transition-all relative ${challenge.isFireTrial ? 'border-primary/40 shadow-2xl bg-primary/5' : 'border-white/5'} ${challenge.completed ? 'opacity-60' : 'hover:-translate-y-1'}`}>
       <div className="h-2 w-full" style={{ background: challenge.isFireTrial ? 'linear-gradient(90deg, var(--primary-custom), #fdd831)' : 'rgba(255,255,255,0.03)' }} />
@@ -255,7 +265,7 @@ const ChallengeCard = ({ challenge, isMentorView, onToggle, onAddComment, commen
         <div className="bg-dark/40 p-6 rounded-[24px] border border-white/5 mb-6">
            <p className="text-slate-200 text-sm leading-relaxed mb-4 font-bold italic">"{challenge.objective}"</p>
            <ul className="space-y-4">
-              {challenge.instructions.map((inst: string, i: number) => (
+              {instructions.map((inst: string, i: number) => (
                 <li key={i} className="flex gap-3 text-sm text-slate-400">
                   <span className="w-5 h-5 rounded-lg bg-primary/10 text-primary flex items-center justify-center text-[10px] font-black shrink-0 mt-0.5 border border-primary/10">{i+1}</span>
                   {inst}

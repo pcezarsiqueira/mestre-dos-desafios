@@ -21,11 +21,18 @@ const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'dashboard' | 'management' | 'settings' | 'insights'>('dashboard');
 
   useEffect(() => {
-    if (tenantLoading) return;
-    const currentUser = Store.getCurrentUser();
-    if (currentUser) setUser(currentUser);
-    const currentPlan = Store.getPlan();
-    if (currentPlan) setPlan(currentPlan);
+    const loadAppData = async () => {
+      if (tenantLoading) return;
+      
+      const currentUser = Store.getCurrentUser();
+      if (currentUser) setUser(currentUser);
+      
+      // Correção: getPlan é assíncrono, precisa ser awaitado
+      const currentPlan = await Store.getPlan();
+      setPlan(currentPlan);
+    };
+
+    loadAppData();
   }, [tenantLoading, slug]);
 
   const branding = config?.branding || user?.branding;
@@ -51,7 +58,9 @@ const App: React.FC = () => {
   };
 
   const handleWizardFinish = async (payload: GeneratePlanPayload) => {
-    if (!user || user.credits <= 0) {
+    if (!user) return;
+    
+    if (user.credits <= 0 && user.role !== UserRole.ADMIN) {
       alert("Seus créditos acabaram. Faça o upgrade para continuar transformando vidas!");
       return;
     }
@@ -90,7 +99,7 @@ const App: React.FC = () => {
           methodology: 'METADESAFIOS'
         };
         
-        Store.savePlan(newPlan);
+        await Store.savePlan(newPlan);
         const updatedUser = Store.deductCredit();
         if (updatedUser) setUser(updatedUser);
         
