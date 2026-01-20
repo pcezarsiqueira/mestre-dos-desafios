@@ -1,7 +1,8 @@
 
 export enum UserRole {
   MENTOR = 'MENTOR',
-  STUDENT = 'STUDENT'
+  STUDENT = 'STUDENT',
+  ADMIN = 'ADMIN'
 }
 
 export enum HealthArea {
@@ -14,6 +15,17 @@ export enum HealthArea {
   FINANCIAL = 'Saúde Financeira'
 }
 
+export interface TransformationMapping {
+  painPoints: {
+    emotional: string;
+    physical: string;
+    spiritual: string;
+    social: string;
+  };
+  inferredCoreBeliefs: string;
+  strategySummary: string;
+}
+
 export interface BrandingSettings {
   logoUrl?: string;
   primaryColor: string;
@@ -23,49 +35,20 @@ export interface BrandingSettings {
   expertName: string;
 }
 
-// --- Multi-tenant Types ---
-
-export interface ChallengeItem extends Omit<Challenge, 'completed' | 'comments'> {
-  proofType?: 'text' | 'image' | 'checklist';
-  badge?: string;
-}
-
-export interface ChallengeTrack {
-  id: string;
-  name: string;
-  days: number;
-  description: string;
-  challenges: ChallengeItem[];
-}
-
-export interface LandingCopy {
-  headline: string;
-  subheadline: string;
-  ctaText: string;
-  features?: { title: string; desc: string }[];
-}
-
-export interface TenantConfig {
-  slug: string;
-  branding: BrandingSettings;
-  landing: LandingCopy;
-  tracks: ChallengeTrack[];
-  inviteCode?: string;
-  isAdminTenant: boolean;
-}
-
-// --- Existing Types ---
-
 export interface User {
   id: string;
   name: string;
   email: string;
+  phone?: string;
+  instagram?: string;
   role: UserRole;
   avatar?: string;
   credits: number;
+  generationsCount: number; // Para controle de 1ª full vs 2ª/3ª parciais
   branding?: BrandingSettings;
   stripeCustomerId?: string;
   notificationsEnabled: boolean;
+  password?: string;
 }
 
 export interface Comment {
@@ -98,19 +81,11 @@ export interface ChallengePlan {
   niche: string;
   selectedAreas: HealthArea[];
   challenges: Challenge[];
+  transformationMapping?: TransformationMapping;
   createdAt: string;
   isGroupPlan: boolean;
   methodology: string;
-  shareToken?: string;
-}
-
-export interface Mentorship {
-  id: string;
-  expertId: string;
-  title: string;
-  description: string;
-  price: number;
-  createdAt: string;
+  isFullVersion: boolean; // Indica se é 7 ou 21 dias
 }
 
 export interface StripePackage {
@@ -120,8 +95,6 @@ export interface StripePackage {
   price: number;
   popular?: boolean;
 }
-
-export type WizardStepId = 'welcome' | 'qualification' | 'method' | 'content-choice' | 'material-upload' | 'avatar-creation' | 'health-areas';
 
 export interface GeneratePlanPayload {
   mentor_profile: string;
@@ -136,24 +109,57 @@ export interface GeneratePlanPayload {
   health_areas: HealthArea[];
   isGroupPlan: boolean;
   plan_type: string;
+  forceFullGeneration?: boolean; // Se true, ignora trava de 7 dias
 }
 
+export interface PlanResponse {
+  plan_title: string;
+  description: string;
+  transformation_mapping: TransformationMapping;
+  challenges: Omit<Challenge, 'completed' | 'comments'>[];
+}
+
+// Added missing WizardStepId type
+export type WizardStepId = 'welcome' | 'qualification' | 'method' | 'content-choice' | 'material-upload' | 'avatar-creation' | 'health-areas';
+
+// Added missing Mentorship interface
+export interface Mentorship {
+  id: string;
+  expertId: string;
+  title: string;
+  description: string;
+  price: number;
+  createdAt: string;
+}
+
+// Added missing RegisteredStudent interface
 export interface RegisteredStudent {
   id: string;
   name: string;
   email: string;
 }
 
+// Added missing RegisteredGroup interface
 export interface RegisteredGroup {
   id: string;
   name: string;
-  studentCount: number;
 }
 
-export interface PlanResponse {
-  plan_title: string;
-  description: string;
-  plan_type: string;
-  health_areas: string[];
-  challenges: Omit<Challenge, 'completed' | 'comments'>[];
+// Added missing TenantConfig interface
+export interface TenantConfig {
+  slug: string;
+  isAdminTenant: boolean;
+  branding: BrandingSettings;
+  landing: {
+    headline: string;
+    subheadline: string;
+    ctaText: string;
+  };
+  tracks: Array<{
+    id: string;
+    name: string;
+    description: string;
+    days: number;
+    challenges: any[];
+  }>;
 }

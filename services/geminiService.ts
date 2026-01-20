@@ -1,43 +1,33 @@
 
 import { GoogleGenAI, Type } from "@google/genai";
-import { GeneratePlanPayload, Challenge, HealthArea } from "../types";
+import { GeneratePlanPayload, Challenge, HealthArea, PlanResponse } from "../types";
 import { CONFIG } from "./config";
 
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
-export const generateChallengePlan = async (payload: GeneratePlanPayload): Promise<Omit<Challenge, 'completed'>[]> => {
-  const modelName = CONFIG.GEMINI.MODEL_PRO; 
+export const generateChallengePlan = async (payload: GeneratePlanPayload): Promise<PlanResponse> => {
+  // Alterado para Flash para velocidade máxima (latência reduzida em até 70%)
+  const modelName = CONFIG.GEMINI.MODEL_MAIN; 
 
   const areasString = payload.health_areas.join(", ");
 
   const promptText = `
-    ATUE COMO UM ESTRATEGISTA DO MÉTODO "METADESAFIOS".
-    Sua missão é criar um desafio de 21 dias baseado na Jornada do Herói e no acrônimo METADESAFIOS.
+    ESTRATEGISTA "METADESAFIOS" - GERAÇÃO VELOZ.
+    Crie um diagnóstico 360º e 21 desafios baseados no Nicho (${payload.mentor_profile}) e Avatar (${payload.student_profile}).
 
-    # CONTEXTO DO MENTOR
-    - Tipo de Mentoria: ${payload.transformation_type}
-    - Status do Método: ${payload.method_status}
-    - Perfil: ${payload.mentor_profile}
+    # DIAGNÓSTICO AUTOMÁTICO
+    Infira dores Emocionais, Físicas, Espirituais e Sociais. 
+    ${payload.pdf_base64 ? "Baseie-se estritamente no PDF anexo para o tom de voz e método." : "Crie um método original e disruptivo."}
 
-    # CONTEXTO DO ALUNO / AVATAR
-    - Nome/Perfil: ${payload.student_name}
-    - Dores/Interesses: ${payload.student_profile} | ${payload.student_interests}
+    # JORNADA HERÓICA (21 DIAS)
+    - DIAS 1-7: Clareza e rápida dopamina.
+    - DIAS 8-14: Quebra de padrões e sombras.
+    - DIAS 15-21: Expansão e Fire Trial (dia 21).
 
-    # BASE DE CONHECIMENTO
-    ${payload.pdf_base64 ? "Analise o arquivo PDF anexo para extrair a metodologia e conteúdo." : (payload.materials_summary || "Criar baseado no avatar, pois não foi fornecido material prévio.")}
-
-    # METODOLOGIA METADESAFIOS
-    Crie uma sequência lógica de 21 dias com progressão de dificuldade.
-    
-    # ESTRUTURA DE 21 DIAS (3 ATOS)
-    ATO 1 (Dias 1-7): Diagnóstico e vitórias rápidas.
-    ATO 2 (Dias 8-13): Superação de travas e novos hábitos.
-    ATO 3 (Dias 14-21): Consolidação e Prova de Fogo final (Fire Trial).
-
-    # ÁREAS DE FOCO SELECIONADAS
-    ${areasString}
-
-    Retorne um JSON array com 21 objetos.
+    # REGRAS TÉCNICAS
+    - Áreas: ${areasString}.
+    - Saída: JSON ESTRITO. Sem preâmbulos.
+    - Linguagem: Direta, motivadora e prática.
   `;
 
   const healthAreaProperties: Record<string, any> = {};
@@ -45,7 +35,6 @@ export const generateChallengePlan = async (payload: GeneratePlanPayload): Promi
     healthAreaProperties[area] = { type: Type.INTEGER };
   });
 
-  // Construção de partes multimodais
   const parts: any[] = [{ text: promptText }];
   
   if (payload.pdf_base64) {
@@ -62,27 +51,54 @@ export const generateChallengePlan = async (payload: GeneratePlanPayload): Promi
     contents: { parts },
     config: {
       responseMimeType: "application/json",
+      // Otimização: Não usamos thinkingBudget no Flash para reduzir latência de primeira resposta
       responseSchema: {
-        type: Type.ARRAY,
-        items: {
-          type: Type.OBJECT,
-          properties: {
-            day: { type: Type.INTEGER },
-            title: { type: Type.STRING },
-            objective: { type: Type.STRING },
-            instructions: { type: Type.ARRAY, items: { type: Type.STRING } },
-            estimated_time: { type: Type.STRING },
-            style_notes: { type: Type.STRING },
-            health_area_weights: { type: Type.OBJECT, properties: healthAreaProperties },
-            xp: { type: Type.INTEGER },
-            isFireTrial: { type: Type.BOOLEAN }
+        type: Type.OBJECT,
+        properties: {
+          plan_title: { type: Type.STRING },
+          description: { type: Type.STRING },
+          transformation_mapping: {
+            type: Type.OBJECT,
+            properties: {
+              painPoints: {
+                type: Type.OBJECT,
+                properties: {
+                  emotional: { type: Type.STRING },
+                  physical: { type: Type.STRING },
+                  spiritual: { type: Type.STRING },
+                  social: { type: Type.STRING }
+                },
+                required: ["emotional", "physical", "spiritual", "social"]
+              },
+              inferredCoreBeliefs: { type: Type.STRING },
+              strategySummary: { type: Type.STRING }
+            },
+            required: ["painPoints", "inferredCoreBeliefs", "strategySummary"]
           },
-          required: ["day", "title", "objective", "instructions", "estimated_time", "health_area_weights", "xp", "isFireTrial"]
-        }
+          challenges: {
+            type: Type.ARRAY,
+            items: {
+              type: Type.OBJECT,
+              properties: {
+                day: { type: Type.INTEGER },
+                title: { type: Type.STRING },
+                objective: { type: Type.STRING },
+                instructions: { type: Type.ARRAY, items: { type: Type.STRING } },
+                estimated_time: { type: Type.STRING },
+                style_notes: { type: Type.STRING },
+                health_area_weights: { type: Type.OBJECT, properties: healthAreaProperties },
+                xp: { type: Type.INTEGER },
+                isFireTrial: { type: Type.BOOLEAN }
+              },
+              required: ["day", "title", "objective", "instructions", "estimated_time", "health_area_weights", "xp", "isFireTrial"]
+            }
+          }
+        },
+        required: ["plan_title", "description", "transformation_mapping", "challenges"]
       }
     }
   });
 
   if (!response.text) throw new Error("A IA não retornou conteúdo.");
-  return JSON.parse(response.text.trim()) as Omit<Challenge, 'completed'>[];
+  return JSON.parse(response.text.trim()) as PlanResponse;
 };

@@ -8,16 +8,16 @@
 
 export const CONFIG = {
   STRIPE: {
-    // COLE SUA CHAVE PUBLISHABLE ABAIXO (pk_test_...)
     PUBLISHABLE_KEY: 'pk_test_INSIRA_SUA_CHAVE_AQUI',
     ENABLED: true,
   },
   GEMINI: {
+    // Modelo Flash é 3x mais rápido que o Pro e excelente para JSON estruturado
+    MODEL_MAIN: 'gemini-3-flash-preview',
     MODEL_PRO: 'gemini-3-pro-preview',
-    MODEL_FLASH: 'gemini-3-flash-preview',
   },
   APP: {
     NAME: 'Mestre dos Desafios',
-    VERSION: '1.2.0-SaaS',
+    VERSION: '1.5.0-HighPerformance',
   }
 };

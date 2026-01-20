@@ -50,6 +50,17 @@
         margin: 0;
         font-family: 'Inter', sans-serif;
       }
+
+      /* Correção da Seleção de Texto */
+      ::selection {
+        background-color: #fe7501 !important;
+        color: #ffffff !important;
+      }
+      ::-moz-selection {
+        background-color: #fe7501 !important;
+        color: #ffffff !important;
+      }
+
       /* Custom background from landing page */
       .bg-custom-gradient {
         background: radial-gradient(1000px 500px at 20% 10%, rgba(254,117,1,.18), transparent 55%),

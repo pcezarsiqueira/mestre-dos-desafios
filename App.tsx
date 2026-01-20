@@ -22,22 +22,12 @@ const App: React.FC = () => {
 
   useEffect(() => {
     if (tenantLoading) return;
-
-    console.log(`Iniciando ${CONFIG.APP.NAME} v${CONFIG.APP.VERSION} | Tenant: ${slug}`);
-    
     const currentUser = Store.getCurrentUser();
     if (currentUser) setUser(currentUser);
-
     const currentPlan = Store.getPlan();
-    if (currentPlan) {
-      setPlan(currentPlan);
-    } else if (!config?.isAdminTenant && config?.tracks && config.tracks.length > 0) {
-      // Se for um tenant de aluno e não tiver plano, podemos pré-carregar a track do tenant
-      // Note: Isso simula o aluno iniciando a jornada gamificada do expert
-    }
-  }, [tenantLoading, slug, config]);
+    if (currentPlan) setPlan(currentPlan);
+  }, [tenantLoading, slug]);
 
-  // Se o config do tenant define cores, elas sobrepõem o branding do usuário (White label real)
   const branding = config?.branding || user?.branding;
 
   useEffect(() => {
@@ -49,61 +39,48 @@ const App: React.FC = () => {
     }
   }, [branding]);
 
-  const handleLogin = (role: UserRole) => {
-    const name = role === UserRole.MENTOR ? (config?.branding.expertName || "Expert") : "Aluno";
-    const newUser = Store.loginUser(name, role);
-    setUser(newUser);
-    
-    if (role === UserRole.STUDENT) {
-      NotificationService.requestNotificationPermission();
-      
-      // Se não houver plano e estivermos num subdomínio com tracks, criamos um plano baseado na track
-      if (!plan && config && config.tracks.length > 0) {
-        const track = config.tracks[0];
-        const studentPlan: ChallengePlan = {
-          id: crypto.randomUUID(),
-          mentorId: 'system',
-          studentName: name,
-          niche: config.slug,
-          selectedAreas: [HealthArea.MENTAL, HealthArea.PHYSICAL, HealthArea.EMOTIONAL],
-          planTitle: track.name,
-          planDescription: track.description,
-          challenges: track.challenges.map(c => ({ ...c, completed: false, comments: [] })),
-          createdAt: new Date().toISOString(),
-          isGroupPlan: false,
-          methodology: 'METADESAFIOS'
-        };
-        Store.savePlan(studentPlan);
-        setPlan(studentPlan);
-      }
-    }
+  const handleAuthSuccess = (u: User) => {
+    setUser(u);
+    NotificationService.requestNotificationPermission();
   };
 
   const handleLogout = () => {
     Store.logoutUser();
     setUser(null);
+    setPlan(null);
   };
 
   const handleWizardFinish = async (payload: GeneratePlanPayload) => {
-    if (!user || (user.credits <= 0 && config?.isAdminTenant)) {
-      alert("Créditos insuficientes.");
+    if (!user || user.credits <= 0) {
+      alert("Seus créditos acabaram. Faça o upgrade para continuar transformando vidas!");
       return;
     }
     
+    // Regra: se generationsCount for 0, é full. Se 1 ou 2, é 7 dias. Se Admin, é sempre full.
+    const isFreeGeneration = user.role !== UserRole.ADMIN && user.generationsCount > 0 && user.generationsCount < 3;
+    const isFullGeneration = user.role === UserRole.ADMIN || user.generationsCount === 0 || payload.forceFullGeneration;
+
     setIsGenerating(true);
 
     try {
-        const generatedChallenges = await GeminiService.generateChallengePlan(payload);
+        const result = await GeminiService.generateChallengePlan(payload);
         
+        // Se for geração limitada, filtramos apenas os 7 primeiros desafios
+        const challengesToSave = isFullGeneration 
+          ? result.challenges 
+          : result.challenges.filter(c => c.day <= 7);
+
         const newPlan: ChallengePlan = {
           id: crypto.randomUUID(),
           mentorId: user.id,
           studentName: payload.student_name,
           niche: payload.mentor_profile.substring(0, 50),
           selectedAreas: payload.health_areas,
-          planTitle: `Jornada ${payload.student_name}: Transformação`,
-          planDescription: `Plano personalizado de 21 dias focado em ${payload.health_areas.length} áreas da saúde.`,
-          challenges: generatedChallenges.map((c: any) => ({ 
+          planTitle: result.plan_title + (isFullGeneration ? "" : " (Versão Teste 7 Dias)"),
+          planDescription: result.description,
+          transformationMapping: result.transformation_mapping,
+          isFullVersion: isFullGeneration,
+          challenges: challengesToSave.map((c: any) => ({ 
             ...c, 
             completed: false,
             comments: [] 
@@ -114,59 +91,41 @@ const App: React.FC = () => {
         };
         
         Store.savePlan(newPlan);
-        if (config?.isAdminTenant) {
-          const updatedUser = Store.deductCredit();
-          if (updatedUser) setUser(updatedUser);
-        }
+        const updatedUser = Store.deductCredit();
+        if (updatedUser) setUser(updatedUser);
+        
         setPlan(newPlan);
         setActiveTab('dashboard');
+
+        if (!isFullGeneration) {
+          alert("Você utilizou um crédito de teste. Esta jornada contém os primeiros 7 dias estratégicos. Adquira o plano completo para desbloquear os 21 dias!");
+        }
+
     } catch (error) {
         console.error("Erro na geração:", error);
-        alert("Erro ao gerar jornada.");
+        alert("Erro ao gerar jornada. Tente novamente.");
     } finally {
         setIsGenerating(false);
     }
   };
 
-  if (tenantLoading) {
-    return (
-      <div className="min-h-screen bg-dark flex items-center justify-center">
-        <div className="text-center space-y-4">
-          <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto" />
-          <p className="text-slate-500 font-bold uppercase tracking-widest text-xs">Carregando Instância...</p>
-        </div>
-      </div>
-    );
-  }
+  if (tenantLoading) return null;
 
   if (!user) {
-    return <LandingPage onLogin={handleLogin} />;
+    return <LandingPage onAuthSuccess={handleAuthSuccess} />;
   }
 
-  const isMentorMode = user.role === UserRole.MENTOR && config?.isAdminTenant;
+  const isMentorMode = user.role === UserRole.MENTOR || user.role === UserRole.ADMIN;
 
   return (
-    <div className="min-h-screen bg-dark text-slate-200 font-sans selection:bg-primary-custom selection:text-dark">
-      <style>{`
-        :root { 
-          --primary-custom: ${branding?.primaryColor || '#fe7501'}; 
-          --secondary-custom: ${branding?.secondaryColor || '#10b981'}; 
-          --accent-custom: ${branding?.accentColor || '#f43f5e'}; 
-        }
-        .bg-primary-custom { background-color: var(--primary-custom); }
-        .text-primary-custom { color: var(--primary-custom); }
-        .border-primary-custom { border-color: var(--primary-custom); }
-      `}</style>
-      
+    <div className="min-h-screen bg-dark text-slate-200 font-sans">
       <nav className="bg-card/80 backdrop-blur-xl border-b border-white/10 sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-full flex items-center justify-center bg-gradient-to-br from-primary-custom to-[#fdd831]">
               <i className="ri-rocket-fill text-dark"></i>
             </div>
-            <span className="font-mont font-black text-white text-lg">
-              {branding?.mentoryName || 'Mestre dos Desafios'}
-            </span>
+            <span className="font-mont font-black text-white text-lg">{branding?.mentoryName || 'Mestre'}</span>
           </div>
 
           {isMentorMode && (
@@ -179,10 +138,10 @@ const App: React.FC = () => {
           )}
 
           <div className="flex items-center gap-4">
-            <div className="text-right hidden sm:block">
+            <div className="text-right">
               <p className="text-sm font-bold text-white leading-none">{user.name}</p>
               <p className="text-[10px] uppercase font-black text-primary-custom">
-                {isMentorMode ? `${user.credits} Créditos` : 'Jornada Ativa'}
+                {user.role === UserRole.ADMIN ? 'SUPER ADMIN' : `${user.credits} CRÉDITOS`}
               </p>
             </div>
             <button onClick={handleLogout} className="text-slate-500 hover:text-white transition-colors">
@@ -193,37 +152,36 @@ const App: React.FC = () => {
       </nav>
 
       <main className="max-w-7xl mx-auto px-6 py-8">
-        {isMentorMode && activeTab === 'settings' && <BrandingManager user={user} onUpdate={setUser} />}
-        {isMentorMode && activeTab === 'management' && <ManagementPanel />}
-        {isMentorMode && activeTab === 'insights' && plan && <InsightsPanel plan={plan} />}
-
         {activeTab === 'dashboard' && (
           <>
-            {!plan && isMentorMode && (
-              <AssessmentWizard onFinish={handleWizardFinish} isLoading={isGenerating} />
-            )}
-
+            {!plan && isMentorMode && <AssessmentWizard onFinish={handleWizardFinish} isLoading={isGenerating} />}
             {plan && (
               <div className="animate-in fade-in duration-500">
                 <div className="flex flex-col md:flex-row justify-between items-start mb-10 gap-6">
                   <div>
                     <h1 className="font-mont text-4xl font-black text-white mb-2">{plan.planTitle}</h1>
                     <p className="text-slate-400 max-w-2xl">{plan.planDescription}</p>
+                    {!plan.isFullVersion && (
+                      <div className="mt-4 px-4 py-2 bg-yellow-500/10 border border-yellow-500/20 text-yellow-500 rounded-xl text-xs font-bold inline-flex items-center gap-2">
+                        <i className="ri-error-warning-line"></i> VERSÃO LIMITADA (7 DIAS) - FAÇA O UPGRADE PARA 21 DIAS
+                      </div>
+                    )}
                   </div>
-                  {isMentorMode && (
-                    <button 
-                      onClick={() => { if(confirm("Apagar jornada atual?")) { setPlan(null); Store.savePlan(null); } }}
-                      className="bg-red-500/10 text-red-400 border border-red-500/20 px-6 py-3 rounded-2xl text-sm font-bold hover:bg-red-500 hover:text-white transition-all"
-                    >
-                      Nova Jornada
-                    </button>
-                  )}
+                  <button 
+                    onClick={() => { if(confirm("Apagar jornada atual?")) { setPlan(null); Store.savePlan(null); } }}
+                    className="bg-red-500/10 text-red-400 border border-red-500/20 px-6 py-3 rounded-2xl text-sm font-bold hover:bg-red-500 hover:text-white transition-all"
+                  >
+                    Nova Jornada
+                  </button>
                 </div>
-                <Dashboard plan={plan} onUpdate={setPlan} isMentorView={user.role === UserRole.MENTOR} />
+                <Dashboard plan={plan} onUpdate={setPlan} isMentorView={user.role !== UserRole.STUDENT} />
               </div>
             )}
           </>
         )}
+        {activeTab === 'management' && <ManagementPanel />}
+        {activeTab === 'insights' && plan && <InsightsPanel plan={plan} />}
+        {activeTab === 'settings' && <BrandingManager user={user} onUpdate={setUser} />}
       </main>
     </div>
   );

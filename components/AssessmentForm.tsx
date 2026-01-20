@@ -56,7 +56,7 @@ const AssessmentForm: React.FC<AssessmentFormProps> = ({ onPlanGenerated }) => {
   const handleSubmit = async () => {
     setLoading(true);
     try {
-      // Fix: Added missing properties to match GeneratePlanPayload interface
+      // Added missing properties to match GeneratePlanPayload interface
       const payload: GeneratePlanPayload = {
         mentor_profile: `Nicho: ${formData.niche}`,
         transformation_type: 'Mentoria Individual', // Added missing property
@@ -71,10 +71,18 @@ const AssessmentForm: React.FC<AssessmentFormProps> = ({ onPlanGenerated }) => {
         isGroupPlan: false
       };
 
-      const generatedChallenges = await GeminiService.generateChallengePlan(payload);
+      const generatedPlanResponse = await GeminiService.generateChallengePlan(payload);
       onPlanGenerated({
         ...formData,
-        challenges: generatedChallenges.map(c => ({ ...c, completed: false }))
+        planTitle: generatedPlanResponse.plan_title,
+        planDescription: generatedPlanResponse.description,
+        transformationMapping: generatedPlanResponse.transformation_mapping,
+        // Fix: correctly access challenges array from the response object
+        challenges: generatedPlanResponse.challenges.map(c => ({ 
+          ...c, 
+          completed: false, 
+          comments: [] 
+        }))
       });
     } catch (error) {
       alert("Erro ao gerar desafios. Verifique sua API Key ou tente novamente.");

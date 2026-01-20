@@ -3,7 +3,7 @@ import React, { useMemo, useState, useEffect } from 'react';
 import { ChallengePlan, HealthArea, Challenge } from '../types';
 import { updateChallengeStatus, addCommentToChallenge } from '../services/store';
 import { requestNotificationPermission, sendChallengeReminder } from '../services/notificationService';
-import { CheckCircle2, Circle, Trophy, BarChart3, Activity, Clock, Zap, MessageSquare, Send, Flame, Sparkles, ChevronDown, ChevronUp, Bell, BellOff } from 'lucide-react';
+import { CheckCircle2, Circle, Trophy, BarChart3, Activity, Clock, Zap, MessageSquare, Send, Flame, Sparkles, ChevronDown, ChevronUp, Bell, BellOff, Heart, Smile, Users as UsersIcon, Brain, Target, ShieldCheck } from 'lucide-react';
 import { Radar, RadarChart, PolarGrid, PolarAngleAxis, ResponsiveContainer, Tooltip } from 'recharts';
 
 interface DashboardProps {
@@ -22,6 +22,7 @@ const Dashboard: React.FC<DashboardProps> = ({ plan, onUpdate, isMentorView }) =
   const [commentText, setCommentText] = useState<Record<number, string>>({});
   const [expandedActs, setExpandedActs] = useState<Record<number, boolean>>({ 1: true, 2: false, 3: false });
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
+  const [showMapping, setShowMapping] = useState(true);
 
   useEffect(() => {
     setNotificationsEnabled(Notification.permission === 'granted');
@@ -31,7 +32,6 @@ const Dashboard: React.FC<DashboardProps> = ({ plan, onUpdate, isMentorView }) =
     const granted = await requestNotificationPermission();
     setNotificationsEnabled(granted);
     if (granted) {
-      alert("Ótimo! Você receberá lembretes diários da sua jornada.");
       sendChallengeReminder(1, "Bem-vindo à sua transformação!");
     }
   };
@@ -89,27 +89,71 @@ const Dashboard: React.FC<DashboardProps> = ({ plan, onUpdate, isMentorView }) =
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 pb-20">
       
-      {/* Listagem por Atos */}
+      {/* Coluna Principal */}
       <div className="lg:col-span-2 space-y-10">
         
-        {/* Banner de Notificações para Alunos */}
-        {!isMentorView && !notificationsEnabled && (
-          <div className="bg-primary/10 border border-primary/20 p-6 rounded-3xl flex items-center justify-between gap-6 animate-in zoom-in-95">
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 bg-primary rounded-2xl flex items-center justify-center text-dark shadow-lg">
-                <Bell className="animate-tada" />
-              </div>
-              <div>
-                <p className="font-bold text-white">Não perca o ritmo!</p>
-                <p className="text-xs text-slate-400">Ative as notificações para ser lembrado dos desafios diários.</p>
-              </div>
-            </div>
-            <button 
-              onClick={handleEnableNotifications}
-              className="px-6 py-3 bg-primary text-dark font-black text-sm rounded-xl hover:scale-105 transition-all"
-            >
-              Ativar Lembretes
-            </button>
+        {/* Mapa da Transformação IA */}
+        {plan.transformationMapping && (
+          <div className={`bg-card p-1 rounded-[40px] border border-white/10 overflow-hidden transition-all duration-700 ${showMapping ? 'max-h-[1000px]' : 'max-h-20'}`}>
+             <div className="bg-dark/40 p-8 rounded-[38px] relative overflow-hidden">
+                <div className="absolute top-0 right-0 p-8">
+                  <button onClick={() => setShowMapping(!showMapping)} className="text-slate-500 hover:text-white transition-colors">
+                    {showMapping ? <ChevronUp /> : <ChevronDown />}
+                  </button>
+                </div>
+
+                <div className="flex items-center gap-3 mb-8">
+                  <div className="w-10 h-10 bg-primary/10 rounded-xl flex items-center justify-center text-primary">
+                    <Brain size={24} />
+                  </div>
+                  <h3 className="font-mont text-xl font-black text-white">Mapa da Transformação IA</h3>
+                </div>
+
+                {showMapping && (
+                  <div className="space-y-8 animate-in fade-in slide-in-from-top-4 duration-500">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="bg-white/5 p-5 rounded-3xl border border-white/5 space-y-3">
+                        <div className="flex items-center gap-2 text-pink-500">
+                          <Smile size={18} />
+                          <span className="text-[10px] font-black uppercase tracking-widest">Bloqueio Emocional</span>
+                        </div>
+                        <p className="text-sm text-slate-300 leading-relaxed">{plan.transformationMapping.painPoints.emotional}</p>
+                      </div>
+                      <div className="bg-white/5 p-5 rounded-3xl border border-white/5 space-y-3">
+                        <div className="flex items-center gap-2 text-emerald-500">
+                          <Heart size={18} />
+                          <span className="text-[10px] font-black uppercase tracking-widest">Sintoma Físico</span>
+                        </div>
+                        <p className="text-sm text-slate-300 leading-relaxed">{plan.transformationMapping.painPoints.physical}</p>
+                      </div>
+                      <div className="bg-white/5 p-5 rounded-3xl border border-white/5 space-y-3">
+                        <div className="flex items-center gap-2 text-yellow-500">
+                          <Zap size={18} />
+                          <span className="text-[10px] font-black uppercase tracking-widest">Conexão Espiritual</span>
+                        </div>
+                        <p className="text-sm text-slate-300 leading-relaxed">{plan.transformationMapping.painPoints.spiritual}</p>
+                      </div>
+                      <div className="bg-white/5 p-5 rounded-3xl border border-white/5 space-y-3">
+                        <div className="flex items-center gap-2 text-blue-500">
+                          <UsersIcon size={18} />
+                          <span className="text-[10px] font-black uppercase tracking-widest">Impacto Social</span>
+                        </div>
+                        <p className="text-sm text-slate-300 leading-relaxed">{plan.transformationMapping.painPoints.social}</p>
+                      </div>
+                    </div>
+
+                    <div className="border-t border-white/5 pt-8">
+                      <div className="flex items-center gap-2 text-primary mb-4">
+                        <ShieldCheck size={20} />
+                        <h4 className="font-mont text-sm font-black uppercase tracking-widest">Estratégia de Cura IA</h4>
+                      </div>
+                      <p className="text-slate-400 text-sm leading-relaxed italic border-l-2 border-primary/30 pl-4">
+                        {plan.transformationMapping.strategySummary}
+                      </p>
+                    </div>
+                  </div>
+                )}
+             </div>
           </div>
         )}
 
