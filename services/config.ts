@@ -3,13 +3,13 @@
  * CONFIGURAÇÃO GLOBAL DO MESTRE DOS DESAFIOS
  * 
  * - Gemini: A chave é lida automaticamente de process.env.API_KEY.
- * - Stripe: Insira sua Publishable Key (pk_test_...) abaixo.
+ * - Stripe: A chave Publishable é lida do localStorage ('stripe_api_key') ou do valor padrão abaixo.
  */
 
 export const CONFIG = {
   STRIPE: {
-    // INSIRA SUA CHAVE DO STRIPE AQUI:
-    PUBLISHABLE_KEY: 'pk_test_SUA_CHAVE_AQUI',
+    // COLE SUA CHAVE PUBLISHABLE ABAIXO (pk_test_...)
+    PUBLISHABLE_KEY: 'pk_test_INSIRA_SUA_CHAVE_AQUI',
     ENABLED: true,
   },
   GEMINI: {

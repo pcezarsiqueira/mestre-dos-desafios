@@ -1,7 +1,7 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { User, BrandingSettings } from '../types';
-import { Palette, Image, CreditCard, Save, PlusCircle, Check, Loader2, Rocket, Zap, Crown } from 'lucide-react';
+import { Palette, Image, CreditCard, Save, PlusCircle, Check, Loader2, Rocket, Zap, Crown, Key } from 'lucide-react';
 import { updateBranding, addCredits } from '../services/store';
 import { STRIPE_PACKAGES, createCheckoutSession } from '../services/stripeService';
 
@@ -18,11 +18,15 @@ const BrandingManager: React.FC<BrandingManagerProps> = ({ user, onUpdate }) => 
     mentoryName: '',
     expertName: user.name
   });
+  
+  const [stripeApiKey, setStripeApiKey] = useState(localStorage.getItem('stripe_api_key') || '');
   const [saved, setSaved] = useState(false);
   const [loadingPkg, setLoadingPkg] = useState<string | null>(null);
 
   const handleSave = () => {
     const updatedUser = updateBranding(branding);
+    localStorage.setItem('stripe_api_key', stripeApiKey);
+    
     if (updatedUser) {
       onUpdate(updatedUser);
       setSaved(true);
@@ -35,7 +39,7 @@ const BrandingManager: React.FC<BrandingManagerProps> = ({ user, onUpdate }) => 
     try {
       const session = await createCheckoutSession(pkg.id, user.email);
       // Em produção: window.location.href = session.url;
-      alert(`Redirecionando para o Checkout Stripe: ${pkg.name}. Em produção você veria a tela de pagamento segura.`);
+      alert(`Redirecionando para o Checkout Stripe utilizando sua chave configurada. Em produção você veria a tela de pagamento segura do Stripe.`);
       
       // Simulação de sucesso para teste local
       setTimeout(() => {
@@ -45,7 +49,7 @@ const BrandingManager: React.FC<BrandingManagerProps> = ({ user, onUpdate }) => 
         alert(`Pagamento Confirmado! +${pkg.credits} Créditos adicionados.`);
       }, 1500);
     } catch (e) {
-      alert("Erro no processamento do Stripe.");
+      alert("Erro no processamento do Stripe. Verifique se sua Chave API está correta.");
       setLoadingPkg(null);
     }
   };
@@ -55,46 +59,69 @@ const BrandingManager: React.FC<BrandingManagerProps> = ({ user, onUpdate }) => 
       
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         
-        {/* Branding Form */}
-        <div className="lg:col-span-1 bg-card p-8 rounded-3xl border border-white/5 shadow-xl space-y-6">
-          <div className="flex items-center gap-3 border-b border-white/5 pb-6">
-            <Palette className="text-primary" />
-            <h3 className="text-xl font-bold text-white">Identidade White-Label</h3>
+        {/* Branding & API Form */}
+        <div className="lg:col-span-1 space-y-6">
+          <div className="bg-card p-8 rounded-3xl border border-white/5 shadow-xl space-y-6">
+            <div className="flex items-center gap-3 border-b border-white/5 pb-6">
+              <Palette className="text-primary" />
+              <h3 className="text-xl font-bold text-white">Identidade White-Label</h3>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Nome da Mentoria</label>
+                <input 
+                  type="text"
+                  className="w-full bg-dark border border-white/10 rounded-xl p-4 text-white outline-none focus:ring-2 focus:ring-primary"
+                  value={branding.mentoryName}
+                  onChange={e => setBranding({...branding, mentoryName: e.target.value})}
+                  placeholder="Ex: Formação Elite"
+                />
+              </div>
+
+              <div className="grid grid-cols-3 gap-3">
+                {['primaryColor', 'secondaryColor', 'accentColor'].map((key) => (
+                  <div key={key}>
+                    <label className="block text-[8px] font-black text-slate-500 uppercase mb-2 text-center">{key.replace('Color','')}</label>
+                    <input 
+                      type="color"
+                      className="w-full h-12 bg-transparent border-none rounded-lg cursor-pointer"
+                      value={(branding as any)[key]}
+                      onChange={e => setBranding({...branding, [key]: e.target.value})}
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
 
-          <div className="space-y-4">
-            <div>
-              <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Nome da Mentoria</label>
-              <input 
-                type="text"
-                className="w-full bg-dark border border-white/10 rounded-xl p-4 text-white outline-none focus:ring-2 focus:ring-primary"
-                value={branding.mentoryName}
-                onChange={e => setBranding({...branding, mentoryName: e.target.value})}
-                placeholder="Ex: Formação Elite"
-              />
+          <div className="bg-card p-8 rounded-3xl border border-white/5 shadow-xl space-y-6">
+            <div className="flex items-center gap-3 border-b border-white/5 pb-6">
+              <Key className="text-yellow-500" />
+              <h3 className="text-xl font-bold text-white">Pagamentos (Stripe)</h3>
             </div>
 
-            <div className="grid grid-cols-3 gap-3">
-              {['primaryColor', 'secondaryColor', 'accentColor'].map((key) => (
-                <div key={key}>
-                  <label className="block text-[8px] font-black text-slate-500 uppercase mb-2 text-center">{key.replace('Color','')}</label>
-                  <input 
-                    type="color"
-                    className="w-full h-12 bg-transparent border-none rounded-lg cursor-pointer"
-                    value={(branding as any)[key]}
-                    onChange={e => setBranding({...branding, [key]: e.target.value})}
-                  />
-                </div>
-              ))}
-            </div>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Stripe Publishable Key</label>
+                <input 
+                  type="password"
+                  className="w-full bg-dark border border-white/10 rounded-xl p-4 text-white outline-none focus:ring-2 focus:ring-yellow-500"
+                  value={stripeApiKey}
+                  onChange={e => setStripeApiKey(e.target.value)}
+                  placeholder="pk_test_..."
+                />
+                <p className="text-[10px] text-slate-500 mt-2 italic">Insira sua chave pública para processar pagamentos de seus mentorados.</p>
+              </div>
 
-            <button 
-              onClick={handleSave}
-              className="w-full bg-primary text-dark font-black py-4 rounded-xl hover:brightness-110 transition-all flex items-center justify-center gap-2"
-            >
-              {saved ? <Check size={20} /> : <Save size={20} />}
-              {saved ? 'Configurações Salvas' : 'Salvar Identidade'}
-            </button>
+              <button 
+                onClick={handleSave}
+                className="w-full bg-primary text-dark font-black py-4 rounded-xl hover:brightness-110 transition-all flex items-center justify-center gap-2 shadow-lg shadow-primary/10"
+              >
+                {saved ? <Check size={20} /> : <Save size={20} />}
+                {saved ? 'Configurações Salvas' : 'Salvar Todas as Alterações'}
+              </button>
+            </div>
           </div>
         </div>
 

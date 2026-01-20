@@ -8,13 +8,20 @@ export const STRIPE_PACKAGES: StripePackage[] = [
   { id: 'pkg_elite', name: 'Plano Master', credits: 50, price: 297 }
 ];
 
+const getStripePublishableKey = () => {
+  // Tenta pegar a chave que o mentor salvou na UI, se não houver, usa a do config.ts
+  return localStorage.getItem('stripe_api_key') || CONFIG.STRIPE.PUBLISHABLE_KEY;
+};
+
 export const createCheckoutSession = async (packageId: string, userEmail: string) => {
-  // CONFIG.STRIPE.PUBLISHABLE_KEY seria usada aqui para inicializar o Stripe.js no frontend
-  console.log(`[Stripe] Usando Publishable Key: ${CONFIG.STRIPE.PUBLISHABLE_KEY}`);
+  const apiKey = getStripePublishableKey();
+  
+  // Este log agora mostrará a chave REAL sendo utilizada no momento
+  console.log(`[Stripe] Iniciando checkout. API Key ativa: ${apiKey}`);
   
   return new Promise<{ url: string }>((resolve) => {
     setTimeout(() => {
-      // Em um app real, chamaria seu backend Node/Express aqui
+      // Simulação de chamada ao backend Node.js que criaria a Session com a Secret Key
       resolve({ url: 'https://checkout.stripe.com/pay/simulated_session' });
     }, 1000);
   });
