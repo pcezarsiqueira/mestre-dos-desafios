@@ -1,0 +1,76 @@
+
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Mestre dos Desafios</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <!-- Icons (Remix Icon) -->
+    <link href="https://cdn.jsdelivr.net/npm/remixicon@4.3.0/fonts/remixicon.css" rel="stylesheet">
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            fontFamily: {
+              sans: ['Inter', 'sans-serif'],
+              mont: ['Montserrat', 'sans-serif'],
+            },
+            colors: {
+              primary: '#fe7501',
+              secondary: '#10b981',
+              dark: '#0b0a12',
+              card: '#121125',
+            }
+          }
+        }
+      }
+    </script>
+    <style>
+      :root {
+        --bg: #0b0a12;
+        --card: #121125;
+        --fg: #f6f5ff;
+        --muted: rgba(246,245,255,.72);
+        --border: rgba(246,245,255,.10);
+        --primary: #fe7501;
+        --cta: #fdd831;
+        --gold: #fdd831;
+        --shadow: 0 18px 50px rgba(0,0,0,.35);
+        --radius: 18px;
+        --radius-xl: 22px;
+      }
+      body {
+        background-color: var(--bg);
+        color: var(--fg);
+        margin: 0;
+        font-family: 'Inter', sans-serif;
+      }
+      /* Custom background from landing page */
+      .bg-custom-gradient {
+        background: radial-gradient(1000px 500px at 20% 10%, rgba(254,117,1,.18), transparent 55%),
+                    radial-gradient(900px 500px at 70% 20%, rgba(253,216,49,.12), transparent 55%),
+                    var(--bg);
+      }
+    </style>
+  <script type="importmap">
+{
+  "imports": {
+    "lucide-react": "https://aistudiocdn.com/lucide-react@^0.555.0",
+    "@google/genai": "https://aistudiocdn.com/@google/genai@^1.30.0",
+    "react/": "https://aistudiocdn.com/react@^19.2.0/",
+    "react": "https://aistudiocdn.com/react@^19.2.0",
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
+    "recharts": "https://aistudiocdn.com/recharts@^3.5.0"
+  }
+}
+</script>
+</head>
+  <body class="bg-custom-gradient">
+    <div id="root"></div>
+  </body>
+</html>
