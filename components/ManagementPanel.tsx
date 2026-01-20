@@ -31,10 +31,13 @@ const ManagementPanel: React.FC = () => {
 
   const addMentorship = () => {
     if (!newM.title) return;
+    // Fixed: Added missing expertId and price properties to comply with Mentorship interface
     const m: Mentorship = {
       id: crypto.randomUUID(),
+      expertId: Store.getCurrentUser()?.id || 'me',
       title: newM.title,
       description: newM.description,
+      price: 0,
       createdAt: new Date().toISOString()
     };
     Store.saveMentorship(m);

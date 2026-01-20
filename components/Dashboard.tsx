@@ -1,8 +1,9 @@
 
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { ChallengePlan, HealthArea, Challenge } from '../types';
 import { updateChallengeStatus, addCommentToChallenge } from '../services/store';
-import { CheckCircle2, Circle, Trophy, BarChart3, Activity, Clock, Zap, MessageSquare, Send, Flame, Sparkles, ChevronDown, ChevronUp } from 'lucide-react';
+import { requestNotificationPermission, sendChallengeReminder } from '../services/notificationService';
+import { CheckCircle2, Circle, Trophy, BarChart3, Activity, Clock, Zap, MessageSquare, Send, Flame, Sparkles, ChevronDown, ChevronUp, Bell, BellOff } from 'lucide-react';
 import { Radar, RadarChart, PolarGrid, PolarAngleAxis, ResponsiveContainer, Tooltip } from 'recharts';
 
 interface DashboardProps {
@@ -11,7 +12,6 @@ interface DashboardProps {
   isMentorView: boolean;
 }
 
-// Define interface for Act mapping
 interface ActGroup {
   title: string;
   desc: string;
@@ -21,6 +21,20 @@ interface ActGroup {
 const Dashboard: React.FC<DashboardProps> = ({ plan, onUpdate, isMentorView }) => {
   const [commentText, setCommentText] = useState<Record<number, string>>({});
   const [expandedActs, setExpandedActs] = useState<Record<number, boolean>>({ 1: true, 2: false, 3: false });
+  const [notificationsEnabled, setNotificationsEnabled] = useState(false);
+
+  useEffect(() => {
+    setNotificationsEnabled(Notification.permission === 'granted');
+  }, []);
+
+  const handleEnableNotifications = async () => {
+    const granted = await requestNotificationPermission();
+    setNotificationsEnabled(granted);
+    if (granted) {
+      alert("Ótimo! Você receberá lembretes diários da sua jornada.");
+      sendChallengeReminder(1, "Bem-vindo à sua transformação!");
+    }
+  };
 
   const progress = useMemo(() => {
     const total = plan.challenges.length;
@@ -32,8 +46,6 @@ const Dashboard: React.FC<DashboardProps> = ({ plan, onUpdate, isMentorView }) =
     return plan.challenges.filter(c => c.completed).reduce((acc, curr) => acc + curr.xp, 0);
   }, [plan.challenges]);
 
-  // Agrupar desafios por Atos
-  // Fix: Explicitly type 'acts' to avoid 'unknown' type inference in Object.entries mapping
   const acts: Record<number, ActGroup> = useMemo(() => {
     return {
       1: { title: 'ATO 1: Mundo Comum & Diagnóstico', desc: 'Foco em clareza, crenças e primeira vitória.', challenges: plan.challenges.filter(c => c.day >= 1 && c.day <= 7) },
@@ -74,15 +86,33 @@ const Dashboard: React.FC<DashboardProps> = ({ plan, onUpdate, isMentorView }) =
     if (updated) onUpdate(updated);
   };
 
-  const toggleAct = (id: number) => {
-    setExpandedActs(prev => ({ ...prev, [id]: !prev[id] }));
-  };
-
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 pb-20">
       
       {/* Listagem por Atos */}
       <div className="lg:col-span-2 space-y-10">
+        
+        {/* Banner de Notificações para Alunos */}
+        {!isMentorView && !notificationsEnabled && (
+          <div className="bg-primary/10 border border-primary/20 p-6 rounded-3xl flex items-center justify-between gap-6 animate-in zoom-in-95">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 bg-primary rounded-2xl flex items-center justify-center text-dark shadow-lg">
+                <Bell className="animate-tada" />
+              </div>
+              <div>
+                <p className="font-bold text-white">Não perca o ritmo!</p>
+                <p className="text-xs text-slate-400">Ative as notificações para ser lembrado dos desafios diários.</p>
+              </div>
+            </div>
+            <button 
+              onClick={handleEnableNotifications}
+              className="px-6 py-3 bg-primary text-dark font-black text-sm rounded-xl hover:scale-105 transition-all"
+            >
+              Ativar Lembretes
+            </button>
+          </div>
+        )}
+
         <div className="grid grid-cols-3 gap-4">
           <div className="bg-card/50 backdrop-blur-sm p-5 rounded-[24px] border border-white/5 text-center shadow-xl">
              <p className="text-[10px] text-slate-500 uppercase font-black tracking-widest mb-1">Experiência</p>
@@ -100,11 +130,10 @@ const Dashboard: React.FC<DashboardProps> = ({ plan, onUpdate, isMentorView }) =
           </div>
         </div>
 
-        {/* Fix: Cast Object.entries to [string, ActGroup][] to ensure type safety for 'act' */}
         {(Object.entries(acts) as unknown as [string, ActGroup][]).map(([id, act]) => (
           <div key={id} className="space-y-4">
             <button 
-              onClick={() => toggleAct(Number(id))}
+              onClick={() => setExpandedActs(prev => ({ ...prev, [Number(id)]: !prev[Number(id)] }))}
               className="w-full flex items-center justify-between p-6 bg-dark/40 rounded-[28px] border border-white/10 hover:border-primary/30 transition-all text-left group"
             >
               <div>
@@ -124,7 +153,7 @@ const Dashboard: React.FC<DashboardProps> = ({ plan, onUpdate, isMentorView }) =
                     onToggle={toggleChallenge}
                     onAddComment={handleAddComment}
                     commentValue={commentText[challenge.day] || ''}
-                    onCommentChange={(val) => setCommentText({...commentText, [challenge.day]: val})}
+                    onCommentChange={(val: string) => setCommentText({...commentText, [challenge.day]: val})}
                   />
                 ))}
               </div>
@@ -133,7 +162,6 @@ const Dashboard: React.FC<DashboardProps> = ({ plan, onUpdate, isMentorView }) =
         ))}
       </div>
 
-      {/* Sidebar (Radar) */}
       <div className="lg:col-span-1 space-y-6">
         <div className="bg-card p-8 rounded-[40px] border border-white/5 sticky top-24 shadow-2xl overflow-hidden">
            <div className="absolute top-0 right-0 w-32 h-32 bg-primary/5 blur-3xl rounded-full -mr-16 -mt-16" />
@@ -142,7 +170,7 @@ const Dashboard: React.FC<DashboardProps> = ({ plan, onUpdate, isMentorView }) =
                <Activity size={28} />
              </div>
              <h3 className="font-mont text-xl font-black text-white">Impacto Sistêmico</h3>
-             <p className="text-[10px] text-slate-500 uppercase font-black tracking-widest mt-1">Status Evolutivo 360º</p>
+             <p className="text-[10px] text-slate-500 uppercase font-black tracking-widest mt-1">Evolução 360º</p>
            </div>
 
            <div className="h-64 w-full relative z-10">
@@ -157,24 +185,8 @@ const Dashboard: React.FC<DashboardProps> = ({ plan, onUpdate, isMentorView }) =
                     fill="var(--primary-custom)"
                     fillOpacity={0.4}
                   />
-                  <Tooltip contentStyle={{ backgroundColor: '#0b0a12', border: 'none', borderRadius: '16px', fontSize: '10px' }} />
                 </RadarChart>
               </ResponsiveContainer>
-           </div>
-           
-           <div className="mt-8 space-y-3 relative z-10">
-              <p className="text-[10px] text-slate-500 font-black uppercase tracking-widest text-center border-b border-white/5 pb-3">Pilares de Crescimento</p>
-              {chartData.sort((a,b) => b.A - a.A).slice(0, 4).map((area, i) => (
-                <div key={area.subject} className="flex justify-between items-center group">
-                  <span className="text-xs text-slate-400 group-hover:text-white transition-colors font-bold">{area.subject}</span>
-                  <div className="flex items-center gap-2">
-                    <div className="w-24 h-1.5 bg-white/5 rounded-full overflow-hidden">
-                      <div className="h-full bg-gradient-to-r from-primary to-[#fdd831]" style={{ width: `${Math.min((area.A / 15) * 100, 100)}%` }} />
-                    </div>
-                    <span className="text-[10px] font-black text-primary">+{area.A}</span>
-                  </div>
-                </div>
-              ))}
            </div>
         </div>
       </div>
@@ -182,101 +194,37 @@ const Dashboard: React.FC<DashboardProps> = ({ plan, onUpdate, isMentorView }) =
   );
 };
 
-// Subcomponente para organizar melhor o código
 const ChallengeCard = ({ challenge, isMentorView, onToggle, onAddComment, commentValue, onCommentChange }: any) => {
   return (
-    <div 
-      className={`
-        bg-card/60 backdrop-blur-sm rounded-[32px] border overflow-hidden transition-all relative
-        ${challenge.isFireTrial ? 'border-primary/40 shadow-[0_0_50px_rgba(254,117,1,0.15)] bg-primary/5' : 'border-white/5'}
-        ${challenge.completed ? 'opacity-60 grayscale-[0.5]' : 'shadow-2xl hover:border-white/20 hover:-translate-y-1'}
-      `}
-    >
-      {challenge.isFireTrial && (
-        <div className="absolute top-5 right-20 flex items-center gap-2 text-primary font-black text-[10px] uppercase tracking-widest bg-primary/15 px-4 py-1.5 rounded-full border border-primary/20">
-          <Flame size={12} fill="currentColor" className="animate-pulse" /> Prova de Fogo
-        </div>
-      )}
-      
+    <div className={`bg-card/60 backdrop-blur-sm rounded-[32px] border overflow-hidden transition-all relative ${challenge.isFireTrial ? 'border-primary/40 shadow-2xl bg-primary/5' : 'border-white/5'} ${challenge.completed ? 'opacity-60' : 'hover:-translate-y-1'}`}>
       <div className="h-2 w-full" style={{ background: challenge.isFireTrial ? 'linear-gradient(90deg, var(--primary-custom), #fdd831)' : 'rgba(255,255,255,0.03)' }} />
-      
       <div className="p-8">
         <div className="flex justify-between items-start mb-6">
           <div className="flex-1">
-            <div className="flex items-center gap-3 mb-2">
-              <span className="text-[10px] font-black px-3 py-1 bg-primary/10 rounded-full text-primary border border-primary/10 tracking-widest">DIA {challenge.day}</span>
-              {challenge.completed && <span className="text-[10px] font-black px-3 py-1 bg-emerald-500/10 rounded-full text-emerald-500 border border-emerald-500/10 tracking-widest uppercase">CONCLUÍDO</span>}
-            </div>
-            <h3 className={`text-2xl font-black leading-tight font-mont ${challenge.isFireTrial ? 'text-primary' : 'text-white'}`}>
-              {challenge.title}
-            </h3>
+            <span className="text-[10px] font-black px-3 py-1 bg-primary/10 rounded-full text-primary border border-primary/10 tracking-widest">DIA {challenge.day}</span>
+            <h3 className={`text-2xl font-black mt-3 leading-tight font-mont ${challenge.isFireTrial ? 'text-primary' : 'text-white'}`}>{challenge.title}</h3>
           </div>
-          <button 
-            onClick={() => onToggle(challenge.day, challenge.completed)}
-            disabled={isMentorView}
-            className="transition-transform active:scale-90 ml-4"
-          >
+          <button onClick={() => onToggle(challenge.day, challenge.completed)} disabled={isMentorView} className="transition-transform active:scale-90 ml-4">
             {challenge.completed ? <CheckCircle2 className="text-emerald-500 w-12 h-12" /> : <Circle className="text-white/10 w-12 h-12 hover:text-white/30" />}
           </button>
         </div>
-
-        <div className="grid grid-cols-2 gap-4 mb-6">
-           <div className="flex items-center gap-2 text-xs text-slate-500 font-bold"><Clock size={14} className="text-slate-400" /> {challenge.estimated_time}</div>
-           <div className="flex items-center gap-2 text-xs text-primary font-black uppercase tracking-widest"><Zap size={14} fill="currentColor" /> {challenge.xp} XP</div>
-        </div>
-
         <div className="bg-dark/40 p-6 rounded-[24px] border border-white/5 mb-6">
            <p className="text-slate-200 text-sm leading-relaxed mb-4 font-bold italic">"{challenge.objective}"</p>
            <ul className="space-y-4">
               {challenge.instructions.map((inst: string, i: number) => (
-                <li key={i} className="flex gap-3 text-sm text-slate-400 leading-relaxed">
+                <li key={i} className="flex gap-3 text-sm text-slate-400">
                   <span className="w-5 h-5 rounded-lg bg-primary/10 text-primary flex items-center justify-center text-[10px] font-black shrink-0 mt-0.5 border border-primary/10">{i+1}</span>
                   {inst}
                 </li>
               ))}
            </ul>
         </div>
-
-        {/* Diário da Jornada */}
-        <div className="border-t border-white/5 pt-6">
-           <h4 className="text-[10px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-2 mb-4">
-             <MessageSquare size={14} /> Relato de Evolução
-           </h4>
-           
-           <div className="space-y-4 mb-4 max-h-[200px] overflow-y-auto pr-2 custom-scrollbar">
-              {challenge.comments?.length > 0 ? challenge.comments.map((c: any) => (
-                <div key={c.id} className="bg-white/5 p-4 rounded-2xl border border-white/5 animate-in fade-in">
-                  <div className="flex justify-between text-[10px] mb-2 font-black uppercase tracking-widest">
-                    <span className="text-primary">{c.studentName}</span>
-                    <span className="text-slate-600">{new Date(c.timestamp).toLocaleDateString()}</span>
-                  </div>
-                  <p className="text-xs text-slate-400 leading-relaxed font-medium">{c.text}</p>
-                </div>
-              )) : (
-                <p className="text-[10px] text-slate-600 italic">Nenhum relato para este dia ainda.</p>
-              )}
-           </div>
-
-           {!isMentorView && (
-             <div className="flex gap-2 bg-dark/50 p-1 rounded-2xl border border-white/10">
-               <input 
-                 type="text"
-                 placeholder="O que você aprendeu com este desafio?"
-                 className="flex-1 bg-transparent px-4 py-3 text-sm text-white outline-none"
-                 value={commentValue}
-                 onChange={e => onCommentChange(e.target.value)}
-                 onKeyPress={e => e.key === 'Enter' && onAddComment(challenge.day)}
-               />
-               <button 
-                onClick={() => onAddComment(challenge.day)}
-                disabled={!commentValue}
-                className="p-3 bg-primary text-dark rounded-xl hover:brightness-110 transition-all shadow-lg disabled:opacity-50"
-               >
-                  <Send size={20} />
-               </button>
-             </div>
-           )}
-        </div>
+        {!isMentorView && (
+          <div className="flex gap-2 bg-dark/50 p-1 rounded-2xl border border-white/10">
+            <input type="text" placeholder="Como foi vencer esse desafio?" className="flex-1 bg-transparent px-4 py-3 text-sm text-white outline-none" value={commentValue} onChange={e => onCommentChange(e.target.value)} onKeyPress={e => e.key === 'Enter' && onAddComment(challenge.day)} />
+            <button onClick={() => onAddComment(challenge.day)} disabled={!commentValue} className="p-3 bg-primary text-dark rounded-xl disabled:opacity-50"><Send size={20} /></button>
+          </div>
+        )}
       </div>
     </div>
   );

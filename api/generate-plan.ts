@@ -1,5 +1,5 @@
 
-import { GoogleGenAI, Type, Schema } from "@google/genai";
+import { GoogleGenAI, Type } from "@google/genai";
 import { GeneratePlanPayload, HealthArea } from "../types";
 
 // Always initialize GoogleGenAI with a named parameter using process.env.API_KEY directly
@@ -41,13 +41,13 @@ export const POST = async (request: Request) => {
     `;
 
     // Prepare properties for health_area_weights schema
-    const healthAreaProperties: Record<string, Schema> = {};
+    const healthAreaProperties: Record<string, any> = {};
     Object.values(HealthArea).forEach(area => {
       healthAreaProperties[area] = { type: Type.INTEGER };
     });
 
     // Define strict schema for the complex object structure
-    const challengeSchema: Schema = {
+    const challengeSchema: any = {
       type: Type.OBJECT,
       properties: {
         day: { type: Type.INTEGER, description: "Dia 1 a 21" },

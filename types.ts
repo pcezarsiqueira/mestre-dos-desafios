@@ -26,10 +26,13 @@ export interface BrandingSettings {
 export interface User {
   id: string;
   name: string;
+  email: string;
   role: UserRole;
   avatar?: string;
   credits: number;
   branding?: BrandingSettings;
+  stripeCustomerId?: string;
+  notificationsEnabled: boolean;
 }
 
 export interface Comment {
@@ -70,24 +73,24 @@ export interface ChallengePlan {
 
 export interface Mentorship {
   id: string;
+  expertId: string;
   title: string;
   description: string;
+  price: number;
   createdAt: string;
 }
 
-export interface RegisteredStudent {
+export interface StripePackage {
   id: string;
   name: string;
-  email: string;
-  activePlanId?: string;
+  credits: number;
+  price: number;
+  popular?: boolean;
 }
 
-export interface RegisteredGroup {
-  id: string;
-  name: string;
-  studentCount: number;
-}
+export type WizardStepId = 'welcome' | 'qualification' | 'method' | 'content-choice' | 'material-upload' | 'avatar-creation' | 'health-areas';
 
+// Added missing types to fix import errors across the application
 export interface GeneratePlanPayload {
   mentor_profile: string;
   transformation_type: string;
@@ -102,10 +105,22 @@ export interface GeneratePlanPayload {
   plan_type: string;
 }
 
+export interface RegisteredStudent {
+  id: string;
+  name: string;
+  email: string;
+}
+
+export interface RegisteredGroup {
+  id: string;
+  name: string;
+  studentCount: number;
+}
+
 export interface PlanResponse {
   plan_title: string;
   description: string;
+  plan_type: string;
+  health_areas: string[];
   challenges: Omit<Challenge, 'completed' | 'comments'>[];
 }
-
-export type WizardStepId = 'welcome' | 'qualification' | 'method' | 'content-choice' | 'material-upload' | 'avatar-creation' | 'health-areas';

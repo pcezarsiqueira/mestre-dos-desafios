@@ -17,11 +17,13 @@ export const loginUser = (name: string, role: UserRole): User => {
   const user: User = {
     id: crypto.randomUUID(),
     name,
+    email: `${name.toLowerCase().replace(/\s/g, '.')}@metadesafios.com.br`,
     role,
     credits: 10,
-    avatar: `https://ui-avatars.com/api/?name=${name}&background=6366f1&color=fff`,
+    notificationsEnabled: false,
+    avatar: `https://ui-avatars.com/api/?name=${name}&background=fe7501&color=fff`,
     branding: {
-      primaryColor: '#6366f1',
+      primaryColor: '#fe7501',
       secondaryColor: '#10b981',
       accentColor: '#f43f5e',
       mentoryName: 'Minha Mentoria Elite',
@@ -42,7 +44,6 @@ export const updateBranding = (branding: BrandingSettings) => {
   return null;
 };
 
-// Gerenciamento de Dados do Mentor
 export const getMentorships = (): Mentorship[] => JSON.parse(localStorage.getItem(MENTORSHIPS_KEY) || '[]');
 export const saveMentorship = (m: Mentorship) => {
   const current = getMentorships();

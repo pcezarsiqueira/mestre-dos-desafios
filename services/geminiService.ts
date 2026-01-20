@@ -1,11 +1,13 @@
 
-import { GoogleGenAI, Type, Schema } from "@google/genai";
+import { GoogleGenAI, Type } from "@google/genai";
 import { GeneratePlanPayload, Challenge, HealthArea } from "../types";
+import { CONFIG } from "./config";
 
+// A chave API_KEY é obtida exclusivamente do ambiente via process.env.API_KEY
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 export const generateChallengePlan = async (payload: GeneratePlanPayload): Promise<Omit<Challenge, 'completed'>[]> => {
-  const modelName = 'gemini-3-pro-preview'; 
+  const modelName = CONFIG.GEMINI.MODEL_PRO; 
 
   const areasString = payload.health_areas.join(", ");
 
@@ -26,37 +28,18 @@ export const generateChallengePlan = async (payload: GeneratePlanPayload): Promi
     ${payload.materials_summary || "Criar baseado no avatar, pois não foi fornecido material prévio."}
 
     # METODOLOGIA METADESAFIOS
-    M — Metas claras (SMART)
-    E — Evolução, não perfeição
-    T — Tempo curto, ações específicas
-    A — Acompanhamento e ajuste
-    D — Divisão em etapas
-    E — Envolvimento emocional
-    S — Sequência lógica (Jornada do Herói)
-    A — Aplicação prática imediata
-    F — Feedback constante
-    I — Inspiração
-    O — Objetivos alcançáveis (primeiras vitórias)
-    S — Sustentabilidade (transformar em rotina)
-
+    Crie uma sequência lógica de 21 dias com progressão de dificuldade.
+    
     # ESTRUTURA DE 21 DIAS (3 ATOS)
-    ATO 1 (Dias 1-7 - Mundo Comum): Foco em diagnóstico, crenças e primeira vitória rápida.
-    ATO 2 (Dias 8-13 - Chamado/Conflito): Enfrentar travas, aumentar exposição e técnica.
-    ATO 3 (Dias 14-21 - Transformação): Consolidação, prova pública e nova identidade.
-
-    # PROVAS DE FOGO (OBRIGATÓRIO)
-    - Dia 7: Prova de Fogo 1 (Check-point emocional/prático)
-    - Dia 13: Prova de Fogo 2 (Desafio de coragem/exposição)
-    - Dia 21: Prova de Fogo 3 (Entrega real final)
-
-    # REGRAS ADICIONAIS
-    - Áreas de saúde a impactar: ${areasString}
-    - XP: 100 a 500 por dia.
+    ATO 1 (Dias 1-7): Diagnóstico e vitórias rápidas.
+    ATO 2 (Dias 8-13): Superação de travas e novos hábitos.
+    ATO 3 (Dias 14-21): Consolidação e Prova de Fogo final.
 
     Retorne um JSON array com 21 objetos.
   `;
 
-  const healthAreaProperties: Record<string, Schema> = {};
+  // Prepara as propriedades do schema para os pesos de saúde
+  const healthAreaProperties: Record<string, any> = {};
   Object.values(HealthArea).forEach(area => {
     healthAreaProperties[area] = { type: Type.INTEGER };
   });
@@ -79,7 +62,7 @@ export const generateChallengePlan = async (payload: GeneratePlanPayload): Promi
             style_notes: { type: Type.STRING },
             health_area_weights: { type: Type.OBJECT, properties: healthAreaProperties },
             xp: { type: Type.INTEGER },
-            isFireTrial: { type: Type.BOOLEAN, description: "Verdadeiro se for Dia 7, 13 ou 21" }
+            isFireTrial: { type: Type.BOOLEAN }
           },
           required: ["day", "title", "objective", "instructions", "estimated_time", "health_area_weights", "xp", "isFireTrial"]
         }
@@ -87,6 +70,6 @@ export const generateChallengePlan = async (payload: GeneratePlanPayload): Promi
     }
   });
 
-  if (!response.text) throw new Error("IA falhou.");
-  return JSON.parse(response.text) as Omit<Challenge, 'completed'>[];
+  if (!response.text) throw new Error("A IA não retornou conteúdo.");
+  return JSON.parse(response.text.trim()) as Omit<Challenge, 'completed'>[];
 };

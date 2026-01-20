@@ -1,15 +1,16 @@
 
 import React, { useState, useEffect } from 'react';
-import { User, UserRole, ChallengePlan, GeneratePlanPayload, PlanResponse } from './types';
+import { User, UserRole, ChallengePlan, GeneratePlanPayload } from './types';
 import * as Store from './services/store';
 import * as GeminiService from './services/geminiService';
+import * as NotificationService from './services/notificationService';
 import AssessmentWizard from './components/AssessmentWizard';
 import Dashboard from './components/Dashboard';
 import BrandingManager from './components/BrandingManager';
 import InsightsPanel from './components/InsightsPanel';
 import ManagementPanel from './components/ManagementPanel';
 import LandingPage from './components/LandingPage';
-import { LayoutDashboard, LogOut, User as UserIcon, GraduationCap, Settings, Users, Package } from 'lucide-react';
+import { CONFIG } from './services/config';
 
 const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
@@ -18,6 +19,7 @@ const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'dashboard' | 'management' | 'settings' | 'insights'>('dashboard');
 
   useEffect(() => {
+    console.log(`Iniciando ${CONFIG.APP.NAME} v${CONFIG.APP.VERSION}`);
     const currentUser = Store.getCurrentUser();
     if (currentUser) setUser(currentUser);
 
@@ -27,16 +29,22 @@ const App: React.FC = () => {
 
   useEffect(() => {
     if (user?.branding) {
-      document.documentElement.style.setProperty('--color-primary', user.branding.primaryColor);
-      document.documentElement.style.setProperty('--color-secondary', user.branding.secondaryColor);
-      document.documentElement.style.setProperty('--color-accent', user.branding.accentColor);
+      const { primaryColor, secondaryColor, accentColor } = user.branding;
+      document.documentElement.style.setProperty('--primary-custom', primaryColor);
+      document.documentElement.style.setProperty('--secondary-custom', secondaryColor);
+      document.documentElement.style.setProperty('--accent-custom', accentColor);
     }
   }, [user]);
 
   const handleLogin = (role: UserRole) => {
-    // Alinhado ao prompt: Expert Bruno ganha 10 créditos iniciais
-    const newUser = Store.loginUser(role === UserRole.MENTOR ? "Expert Bruno" : "Aluno Lucas", role);
+    const name = role === UserRole.MENTOR ? "Expert Bruno" : "Aluno Lucas";
+    const newUser = Store.loginUser(name, role);
     setUser(newUser);
+    
+    // Solicitar permissão de notificação no login se for aluno
+    if (role === UserRole.STUDENT) {
+      NotificationService.requestNotificationPermission();
+    }
   };
 
   const handleLogout = () => {
@@ -46,7 +54,7 @@ const App: React.FC = () => {
 
   const handleWizardFinish = async (payload: GeneratePlanPayload) => {
     if (!user || user.credits <= 0) {
-      alert("Você não tem créditos suficientes. Adquira mais na aba Identidade.");
+      alert("Créditos insuficientes. Adquira mais no painel de Identidade.");
       return;
     }
     
@@ -61,8 +69,8 @@ const App: React.FC = () => {
           studentName: payload.student_name,
           niche: payload.mentor_profile.substring(0, 50),
           selectedAreas: payload.health_areas,
-          planTitle: `Jornada ${payload.student_name}: METADESAFIOS`,
-          planDescription: `Um plano de 21 dias estruturado em 3 atos para transformação integral.`,
+          planTitle: `Jornada ${payload.student_name}: Transformação`,
+          planDescription: `Plano personalizado de 21 dias focado em ${payload.health_areas.length} áreas da saúde.`,
           challenges: generatedChallenges.map((c: any) => ({ 
             ...c, 
             completed: false,
@@ -80,7 +88,7 @@ const App: React.FC = () => {
         setActiveTab('dashboard');
     } catch (error) {
         console.error("Erro na geração:", error);
-        alert("Ocorreu um erro ao gerar sua jornada. Verifique sua conexão ou créditos.");
+        alert("Erro ao gerar jornada. Verifique sua conexão.");
     } finally {
         setIsGenerating(false);
     }
@@ -93,7 +101,7 @@ const App: React.FC = () => {
   const branding = user.branding;
 
   return (
-    <div className="min-h-screen bg-dark text-slate-200 font-sans">
+    <div className="min-h-screen bg-dark text-slate-200 font-sans selection:bg-primary-custom selection:text-dark">
       <style>{`
         :root { 
           --primary-custom: ${branding?.primaryColor || '#fe7501'}; 
@@ -103,39 +111,25 @@ const App: React.FC = () => {
         .bg-primary-custom { background-color: var(--primary-custom); }
         .text-primary-custom { color: var(--primary-custom); }
         .border-primary-custom { border-color: var(--primary-custom); }
-        .font-mont { font-family: 'Montserrat', sans-serif; }
       `}</style>
       
-      {/* Navbar Branding */}
       <nav className="bg-card/80 backdrop-blur-xl border-b border-white/10 sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            {branding?.logoUrl ? (
-              <img src={branding.logoUrl} alt="Logo" className="h-8 w-auto" />
-            ) : (
-              <div className="w-9 h-9 rounded-full flex items-center justify-center bg-gradient-to-br from-primary-custom to-[#fdd831]">
-                <i className="ri-trophy-line text-dark"></i>
-              </div>
-            )}
+            <div className="w-9 h-9 rounded-full flex items-center justify-center bg-gradient-to-br from-primary-custom to-[#fdd831]">
+              <i className="ri-rocket-fill text-dark"></i>
+            </div>
             <span className="font-mont font-black text-white text-lg">
-              {user.role === UserRole.MENTOR ? 'Mestre dos Desafios' : branding?.mentoryName || 'Mentoria'}
+              {user.role === UserRole.MENTOR ? 'Mestre dos Desafios' : branding?.mentoryName || 'Jornada Hero'}
             </span>
           </div>
 
           {user.role === UserRole.MENTOR && (
             <div className="hidden lg:flex bg-dark/50 p-1 rounded-lg border border-white/10 mx-8">
-              <button onClick={() => setActiveTab('dashboard')} className={`px-4 py-1.5 rounded-md text-sm font-bold transition-all ${activeTab === 'dashboard' ? 'bg-white/10 text-white' : 'text-slate-400'}`}>
-                Jornadas
-              </button>
-              <button onClick={() => setActiveTab('management')} className={`px-4 py-1.5 rounded-md text-sm font-bold transition-all ${activeTab === 'management' ? 'bg-white/10 text-white' : 'text-slate-400'}`}>
-                Gerenciamento
-              </button>
-              <button onClick={() => setActiveTab('insights')} className={`px-4 py-1.5 rounded-md text-sm font-bold transition-all ${activeTab === 'insights' ? 'bg-white/10 text-white' : 'text-slate-400'}`}>
-                Insights IA
-              </button>
-              <button onClick={() => setActiveTab('settings')} className={`px-4 py-1.5 rounded-md text-sm font-bold transition-all ${activeTab === 'settings' ? 'bg-white/10 text-white' : 'text-slate-400'}`}>
-                Identidade
-              </button>
+              <button onClick={() => setActiveTab('dashboard')} className={`px-4 py-1.5 rounded-md text-sm font-bold transition-all ${activeTab === 'dashboard' ? 'bg-white/10 text-white' : 'text-slate-400'}`}>Dashboard</button>
+              <button onClick={() => setActiveTab('management')} className={`px-4 py-1.5 rounded-md text-sm font-bold transition-all ${activeTab === 'management' ? 'bg-white/10 text-white' : 'text-slate-400'}`}>Gestão</button>
+              <button onClick={() => setActiveTab('insights')} className={`px-4 py-1.5 rounded-md text-sm font-bold transition-all ${activeTab === 'insights' ? 'bg-white/10 text-white' : 'text-slate-400'}`}>Estratégia</button>
+              <button onClick={() => setActiveTab('settings')} className={`px-4 py-1.5 rounded-md text-sm font-bold transition-all ${activeTab === 'settings' ? 'bg-white/10 text-white' : 'text-slate-400'}`}>Identidade</button>
             </div>
           )}
 
@@ -143,10 +137,9 @@ const App: React.FC = () => {
             <div className="text-right hidden sm:block">
               <p className="text-sm font-bold text-white leading-none">{user.name}</p>
               <p className="text-[10px] uppercase font-black text-primary-custom">
-                {user.role === UserRole.MENTOR ? `${user.credits} Créditos` : 'Aluno'}
+                {user.role === UserRole.MENTOR ? `${user.credits} Créditos` : 'Aluno Ativo'}
               </p>
             </div>
-            <img src={user.avatar} alt="Avatar" className="w-9 h-9 rounded-full border border-white/10" />
             <button onClick={handleLogout} className="text-slate-500 hover:text-white transition-colors">
               <i className="ri-logout-box-line text-lg"></i>
             </button>
@@ -155,18 +148,9 @@ const App: React.FC = () => {
       </nav>
 
       <main className="max-w-7xl mx-auto px-6 py-8">
-        
-        {user.role === UserRole.MENTOR && activeTab === 'settings' && (
-          <BrandingManager user={user} onUpdate={setUser} />
-        )}
-
-        {user.role === UserRole.MENTOR && activeTab === 'management' && (
-          <ManagementPanel />
-        )}
-
-        {user.role === UserRole.MENTOR && activeTab === 'insights' && plan && (
-          <InsightsPanel plan={plan} />
-        )}
+        {user.role === UserRole.MENTOR && activeTab === 'settings' && <BrandingManager user={user} onUpdate={setUser} />}
+        {user.role === UserRole.MENTOR && activeTab === 'management' && <ManagementPanel />}
+        {user.role === UserRole.MENTOR && activeTab === 'insights' && plan && <InsightsPanel plan={plan} />}
 
         {activeTab === 'dashboard' && (
           <>
@@ -174,31 +158,17 @@ const App: React.FC = () => {
               <AssessmentWizard onFinish={handleWizardFinish} isLoading={isGenerating} />
             )}
 
-            {!plan && user.role === UserRole.STUDENT && (
-               <div className="text-center py-20 bg-card/50 rounded-[32px] border border-white/10 shadow-2xl">
-                 <div className="w-20 h-20 bg-primary-custom/10 rounded-full flex items-center justify-center mx-auto mb-6 text-primary-custom">
-                   <i className="ri-hourglass-line text-4xl"></i>
-                 </div>
-                 <h2 className="font-mont text-3xl font-black text-white mb-2">Aguardando seu Mestre</h2>
-                 <p className="text-slate-400">Sua jornada de 21 dias ainda não foi iniciada pelo seu mentor.</p>
-               </div>
-            )}
-
             {plan && (
               <div className="animate-in fade-in duration-500">
                 <div className="flex flex-col md:flex-row justify-between items-start mb-10 gap-6">
                   <div>
-                    <div className="flex items-center gap-3 mb-2">
-                       <h1 className="font-mont text-4xl font-black text-white">{plan.planTitle}</h1>
-                       {plan.isGroupPlan && <span className="bg-primary-custom/20 text-primary-custom text-[10px] font-black px-2 py-0.5 rounded-full border border-primary-custom/30 tracking-widest uppercase">GRUPO</span>}
-                    </div>
-                    <p className="text-slate-400 max-w-2xl text-lg">{plan.planDescription}</p>
-                    <p className="text-xs text-slate-600 mt-2 font-semibold">Criado por {branding?.expertName || 'Mentor'} • {new Date(plan.createdAt).toLocaleDateString()}</p>
+                    <h1 className="font-mont text-4xl font-black text-white mb-2">{plan.planTitle}</h1>
+                    <p className="text-slate-400 max-w-2xl">{plan.planDescription}</p>
                   </div>
                   {user.role === UserRole.MENTOR && (
                     <button 
                       onClick={() => { if(confirm("Apagar jornada atual?")) { setPlan(null); Store.savePlan(null); } }}
-                      className="bg-red-500/10 text-red-400 border border-red-500/20 px-6 py-3 rounded-2xl text-sm font-bold hover:bg-red-500 hover:text-white transition-all shadow-lg"
+                      className="bg-red-500/10 text-red-400 border border-red-500/20 px-6 py-3 rounded-2xl text-sm font-bold hover:bg-red-500 hover:text-white transition-all"
                     >
                       Nova Jornada
                     </button>
