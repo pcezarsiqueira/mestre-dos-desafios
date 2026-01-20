@@ -8,6 +8,7 @@ export default defineConfig(({ mode }) => {
       server: {
         port: 3000,
         host: '0.0.0.0',
+        allowedHosts: [ 'mestredosdesafios.com.br', 'www.mestredosdesafios.com.br', 'mestredosdesafios.paulinhosiqueira.com.br' ]
       },
       plugins: [react()],
       define: {
