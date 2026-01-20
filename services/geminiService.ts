@@ -3,31 +3,26 @@ import { GoogleGenAI, Type } from "@google/genai";
 import { GeneratePlanPayload, Challenge, HealthArea, PlanResponse } from "../types";
 import { CONFIG } from "./config";
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-
 export const generateChallengePlan = async (payload: GeneratePlanPayload): Promise<PlanResponse> => {
-  // Alterado para Flash para velocidade máxima (latência reduzida em até 70%)
+  // Initialize AI inside the function to ensure it uses the latest configuration
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  
+  // Garantindo o uso do modelo FLASH para latência mínima
   const modelName = CONFIG.GEMINI.MODEL_MAIN; 
 
   const areasString = payload.health_areas.join(", ");
 
   const promptText = `
-    ESTRATEGISTA "METADESAFIOS" - GERAÇÃO VELOZ.
-    Crie um diagnóstico 360º e 21 desafios baseados no Nicho (${payload.mentor_profile}) e Avatar (${payload.student_profile}).
-
-    # DIAGNÓSTICO AUTOMÁTICO
-    Infira dores Emocionais, Físicas, Espirituais e Sociais. 
-    ${payload.pdf_base64 ? "Baseie-se estritamente no PDF anexo para o tom de voz e método." : "Crie um método original e disruptivo."}
-
-    # JORNADA HERÓICA (21 DIAS)
-    - DIAS 1-7: Clareza e rápida dopamina.
-    - DIAS 8-14: Quebra de padrões e sombras.
-    - DIAS 15-21: Expansão e Fire Trial (dia 21).
-
-    # REGRAS TÉCNICAS
-    - Áreas: ${areasString}.
-    - Saída: JSON ESTRITO. Sem preâmbulos.
-    - Linguagem: Direta, motivadora e prática.
+    ESTRATEGISTA "METADESAFIOS" - MODO VELOZ.
+    Crie 21 desafios para Mentor (${payload.mentor_profile}) e Aluno (${payload.student_profile}).
+    
+    ESTRUTURA:
+    - Dias 1-7: Vitórias rápidas.
+    - Dias 8-14: Quebra de padrões.
+    - Dias 15-21: Expansão (Dia 21 é FIRE TRIAL).
+    
+    Regras: Áreas (${areasString}), XP (100-500), JSON estrito.
+    ${payload.pdf_base64 ? "Siga o método do PDF anexo." : ""}
   `;
 
   const healthAreaProperties: Record<string, any> = {};
@@ -51,7 +46,7 @@ export const generateChallengePlan = async (payload: GeneratePlanPayload): Promi
     contents: { parts },
     config: {
       responseMimeType: "application/json",
-      // Otimização: Não usamos thinkingBudget no Flash para reduzir latência de primeira resposta
+      // Desabilitamos o thinkingBudget para o Flash para evitar latência de raciocínio em tarefas estruturadas
       responseSchema: {
         type: Type.OBJECT,
         properties: {
@@ -67,13 +62,11 @@ export const generateChallengePlan = async (payload: GeneratePlanPayload): Promi
                   physical: { type: Type.STRING },
                   spiritual: { type: Type.STRING },
                   social: { type: Type.STRING }
-                },
-                required: ["emotional", "physical", "spiritual", "social"]
+                }
               },
               inferredCoreBeliefs: { type: Type.STRING },
               strategySummary: { type: Type.STRING }
-            },
-            required: ["painPoints", "inferredCoreBeliefs", "strategySummary"]
+            }
           },
           challenges: {
             type: Type.ARRAY,
@@ -94,11 +87,11 @@ export const generateChallengePlan = async (payload: GeneratePlanPayload): Promi
             }
           }
         },
-        required: ["plan_title", "description", "transformation_mapping", "challenges"]
+        required: ["plan_title", "description", "challenges"]
       }
     }
   });
 
-  if (!response.text) throw new Error("A IA não retornou conteúdo.");
+  if (!response.text) throw new Error("IA sem resposta.");
   return JSON.parse(response.text.trim()) as PlanResponse;
 };

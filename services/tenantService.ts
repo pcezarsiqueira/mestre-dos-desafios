@@ -1,18 +1,16 @@
 
 import { TenantConfig } from '../types';
 
+const API_URL = 'http://localhost:3001/api';
+
 export const getTenantSlugFromHostname = (): string => {
   const hostname = window.location.hostname;
   
-  // Localhost / IPs
   if (hostname === 'localhost' || hostname === '127.0.0.1') {
     return 'default';
   }
 
   const parts = hostname.split('.');
-  
-  // Se for slug.mestredosdesafios.com.br (parts = [slug, mestredosdesafios, com, br])
-  // Se for mestredosdesafios.com.br (parts = [mestredosdesafios, com, br])
   if (parts.length > 2) {
     const slug = parts[0];
     if (slug === 'www' || slug === 'app') return 'default';
@@ -24,19 +22,31 @@ export const getTenantSlugFromHostname = (): string => {
 
 export const loadTenantConfig = async (slug: string): Promise<TenantConfig> => {
   try {
-    const response = await fetch(`/tenants/${slug}.json`);
-    if (!response.ok) throw new Error('Tenant not found');
-    const config = await response.json();
-    return {
-      ...config,
-      isAdminTenant: slug === 'default'
-    };
+    // 1. Tenta buscar no banco de dados via API
+    const response = await fetch(`${API_URL}/tenants/${slug}`);
+    if (response.ok) {
+      const config = await response.json();
+      return {
+        ...config,
+        isAdminTenant: slug === 'default'
+      };
+    }
+
+    // 2. Fallback para arquivo JSON local (legado/padrão)
+    const localResponse = await fetch(`/tenants/${slug}.json`);
+    if (localResponse.ok) {
+      const config = await localResponse.json();
+      return {
+        ...config,
+        isAdminTenant: slug === 'default'
+      };
+    }
+
+    throw new Error('Config not found');
   } catch (error) {
     console.warn(`Config para [${slug}] não encontrada. Usando default.`);
-    // Se falhar, tenta carregar o default
     if (slug !== 'default') return loadTenantConfig('default');
     
-    // Fallback hardcoded se até o default.json falhar
     return {
       slug: 'default',
       isAdminTenant: true,
@@ -55,4 +65,17 @@ export const loadTenantConfig = async (slug: string): Promise<TenantConfig> => {
       tracks: []
     };
   }
+};
+
+export const saveTenantConfig = async (config: { slug: string, mentorId: string, branding: any, landing: any }) => {
+  const response = await fetch(`${API_URL}/tenants`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(config)
+  });
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || 'Erro ao salvar configuração de subdomínio');
+  }
+  return await response.json();
 };

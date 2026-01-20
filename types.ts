@@ -15,26 +15,6 @@ export enum HealthArea {
   FINANCIAL = 'Saúde Financeira'
 }
 
-export interface TransformationMapping {
-  painPoints: {
-    emotional: string;
-    physical: string;
-    spiritual: string;
-    social: string;
-  };
-  inferredCoreBeliefs: string;
-  strategySummary: string;
-}
-
-export interface BrandingSettings {
-  logoUrl?: string;
-  primaryColor: string;
-  secondaryColor: string;
-  accentColor: string;
-  mentoryName: string;
-  expertName: string;
-}
-
 export interface User {
   id: string;
   name: string;
@@ -44,11 +24,23 @@ export interface User {
   role: UserRole;
   avatar?: string;
   credits: number;
-  generationsCount: number; // Para controle de 1ª full vs 2ª/3ª parciais
+  generationsCount: number;
   branding?: BrandingSettings;
   stripeCustomerId?: string;
   notificationsEnabled: boolean;
   password?: string;
+  isBlocked: boolean; // Novo campo
+  totalSpent?: number; // Novo campo
+  created_at?: string;
+}
+
+export interface BrandingSettings {
+  logoUrl?: string;
+  primaryColor: string;
+  secondaryColor: string;
+  accentColor: string;
+  mentoryName: string;
+  expertName: string;
 }
 
 export interface Comment {
@@ -85,44 +77,20 @@ export interface ChallengePlan {
   createdAt: string;
   isGroupPlan: boolean;
   methodology: string;
-  isFullVersion: boolean; // Indica se é 7 ou 21 dias
+  isFullVersion: boolean; 
 }
 
-export interface StripePackage {
-  id: string;
-  name: string;
-  credits: number;
-  price: number;
-  popular?: boolean;
+export interface TransformationMapping {
+  painPoints: {
+    emotional: string;
+    physical: string;
+    spiritual: string;
+    social: string;
+  };
+  inferredCoreBeliefs: string;
+  strategySummary: string;
 }
 
-export interface GeneratePlanPayload {
-  mentor_profile: string;
-  transformation_type: string;
-  method_status: string;
-  has_material: boolean;
-  materials_summary: string;
-  pdf_base64?: string;
-  student_name: string;
-  student_profile: string;
-  student_interests: string;
-  health_areas: HealthArea[];
-  isGroupPlan: boolean;
-  plan_type: string;
-  forceFullGeneration?: boolean; // Se true, ignora trava de 7 dias
-}
-
-export interface PlanResponse {
-  plan_title: string;
-  description: string;
-  transformation_mapping: TransformationMapping;
-  challenges: Omit<Challenge, 'completed' | 'comments'>[];
-}
-
-// Added missing WizardStepId type
-export type WizardStepId = 'welcome' | 'qualification' | 'method' | 'content-choice' | 'material-upload' | 'avatar-creation' | 'health-areas';
-
-// Added missing Mentorship interface
 export interface Mentorship {
   id: string;
   expertId: string;
@@ -132,20 +100,17 @@ export interface Mentorship {
   createdAt: string;
 }
 
-// Added missing RegisteredStudent interface
 export interface RegisteredStudent {
   id: string;
   name: string;
   email: string;
 }
 
-// Added missing RegisteredGroup interface
 export interface RegisteredGroup {
   id: string;
   name: string;
 }
 
-// Added missing TenantConfig interface
 export interface TenantConfig {
   slug: string;
   isAdminTenant: boolean;
@@ -162,4 +127,37 @@ export interface TenantConfig {
     days: number;
     challenges: any[];
   }>;
+}
+
+export interface GeneratePlanPayload {
+  mentor_profile: string;
+  transformation_type: string;
+  method_status: string;
+  has_material: boolean;
+  materials_summary: string;
+  pdf_base64?: string;
+  student_name: string;
+  student_profile: string;
+  student_interests: string;
+  health_areas: HealthArea[];
+  isGroupPlan: boolean;
+  plan_type: string;
+  forceFullGeneration?: boolean; 
+}
+
+export interface PlanResponse {
+  plan_title: string;
+  description: string;
+  transformation_mapping: TransformationMapping;
+  challenges: Omit<Challenge, 'completed' | 'comments'>[];
+}
+
+export type WizardStepId = 'welcome' | 'qualification' | 'method' | 'content-choice' | 'material-upload' | 'avatar-creation' | 'health-areas';
+
+export interface StripePackage {
+  id: string;
+  name: string;
+  credits: number;
+  price: number;
+  popular?: boolean;
 }
