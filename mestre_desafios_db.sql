@@ -13,23 +13,21 @@ CREATE TABLE IF NOT EXISTS users (
     role ENUM('MENTOR', 'STUDENT', 'ADMIN') DEFAULT 'MENTOR',
     credits INT DEFAULT 3,
     generations_count INT DEFAULT 0,
-    branding_json TEXT, -- Usando TEXT para compatibilidade caso JSON não esteja ativo
+    branding_json LONGTEXT, -- LONGTEXT para evitar erros de tamanho
     notifications_enabled BOOLEAN DEFAULT FALSE,
     password VARCHAR(255),
     is_blocked BOOLEAN DEFAULT FALSE,
+    avatar VARCHAR(500),
     total_spent DECIMAL(10,2) DEFAULT 0.00,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Usuário Admin Padrão (Opcional para insert manual se necessário)
--- INSERT INTO users (id, name, email, role, credits, password) VALUES ('admin-001', 'Admin Mestre', 'admin@mestre.com', 'ADMIN', 999, 'mestre@123');
-
--- Tabela de Tenants (Configurações de Subdomínio)
+-- Tabela de Tenants
 CREATE TABLE IF NOT EXISTS tenants (
     slug VARCHAR(100) PRIMARY KEY,
     mentor_id VARCHAR(36) NOT NULL,
-    branding_json TEXT,
-    landing_json TEXT,
+    branding_json LONGTEXT,
+    landing_json LONGTEXT,
     is_active BOOLEAN DEFAULT TRUE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -45,7 +43,8 @@ CREATE TABLE IF NOT EXISTS plans (
     plan_description TEXT,
     niche VARCHAR(255),
     selected_areas TEXT,
-    transformation_mapping_json TEXT,
+    transformation_mapping_json LONGTEXT,
+    challenges_json LONGTEXT, 
     is_group_plan BOOLEAN DEFAULT FALSE,
     is_full_version BOOLEAN DEFAULT TRUE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
