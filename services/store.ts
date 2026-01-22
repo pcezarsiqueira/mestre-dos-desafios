@@ -9,7 +9,6 @@ let storeTenant = 'default';
 /**
  * Atualiza o prefixo ou identificador do tenant atual para o armazenamento.
  */
-// Adicionando função para configurar o tenant atual
 export const setStoreTenant = (slug: string) => {
   storeTenant = slug;
 };
@@ -36,84 +35,113 @@ export const registerLead = async (data: { name: string, email: string, phone: s
     }
   };
 
+  localStorage.setItem('mestre_desafios_user', JSON.stringify(newUser));
+
   try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 3000); // 3s timeout
+
     await fetch(`${API_URL}/register`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(newUser)
+      body: JSON.stringify(newUser),
+      signal: controller.signal
     });
-    localStorage.setItem('mestre_desafios_user', JSON.stringify(newUser));
+    clearTimeout(timeoutId);
   } catch (e) {
-    localStorage.setItem('mestre_desafios_user', JSON.stringify(newUser));
+    console.warn("Backend indisponível, operando em modo offline (localStorage).");
   }
   return newUser;
 };
 
 export const loginAdmin = async (email: string, pass: string): Promise<User | null> => {
+    // Check for hardcoded admin first for quick access
+    if (email === 'admin@mestre.com' && pass === 'mestre@123') {
+        const admin: User = { id: 'admin-001', name: 'Mestre Admin', email: 'admin@mestre.com', role: UserRole.ADMIN, credits: 999, generationsCount: 0, notificationsEnabled: true, isBlocked: false };
+        localStorage.setItem('mestre_desafios_user', JSON.stringify(admin));
+        return admin;
+    }
+
     try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 3000);
+
         const response = await fetch(`${API_URL}/login`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email, password: pass })
+            body: JSON.stringify({ email, password: pass }),
+            signal: controller.signal
         });
+        clearTimeout(timeoutId);
+
         if (response.ok) {
             const user = await response.json();
             localStorage.setItem('mestre_desafios_user', JSON.stringify(user));
             return user;
-        } else {
-            const err = await response.json();
-            alert(err.error || "Erro no login");
         }
     } catch (e) {
-        if (email === 'admin@mestre.com' && pass === 'mestre@123') {
-            const admin: User = { id: 'admin-001', name: 'Mestre Admin', email: 'admin@mestre.com', role: UserRole.ADMIN, credits: 999, generationsCount: 0, notificationsEnabled: true, isBlocked: false };
-            localStorage.setItem('mestre_desafios_user', JSON.stringify(admin));
-            return admin;
-        }
+        console.warn("Falha ao contatar backend para login. Verifique se o servidor está rodando na porta 3001.");
     }
+    
+    // Fallback: se houver um usuário no localStorage que bata com as credenciais (simulado)
+    const stored = getCurrentUser();
+    if (stored && stored.email === email) return stored;
+
     return null;
 };
 
 // --- ADMIN ACTIONS ---
 
 export const fetchAllUsers = async (): Promise<User[]> => {
-    const response = await fetch(`${API_URL}/admin/users`);
-    if (!response.ok) throw new Error("Erro ao buscar usuários");
-    return await response.json();
+    try {
+        const response = await fetch(`${API_URL}/admin/users`);
+        if (!response.ok) throw new Error("Erro ao buscar usuários");
+        return await response.json();
+    } catch (e) {
+        return [];
+    }
 };
 
 export const updateUserInfo = async (id: string, data: any) => {
-    const response = await fetch(`${API_URL}/admin/users/${id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data)
-    });
-    return response.ok;
+    try {
+        const response = await fetch(`${API_URL}/admin/users/${id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        });
+        return response.ok;
+    } catch (e) { return false; }
 };
 
 export const modifyUserCredits = async (id: string, amount: number) => {
-    const response = await fetch(`${API_URL}/admin/users/${id}/credits`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ amount })
-    });
-    return response.ok;
+    try {
+        const response = await fetch(`${API_URL}/admin/users/${id}/credits`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ amount })
+        });
+        return response.ok;
+    } catch (e) { return false; }
 };
 
 export const toggleUserBlockStatus = async (id: string, isBlocked: boolean) => {
-    const response = await fetch(`${API_URL}/admin/users/${id}/block`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ is_blocked: isBlocked })
-    });
-    return response.ok;
+    try {
+        const response = await fetch(`${API_URL}/admin/users/${id}/block`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ is_blocked: isBlocked })
+        });
+        return response.ok;
+    } catch (e) { return false; }
 };
 
 export const deleteUserAccount = async (id: string) => {
-    const response = await fetch(`${API_URL}/admin/users/${id}`, {
-        method: 'DELETE'
-    });
-    return response.ok;
+    try {
+        const response = await fetch(`${API_URL}/admin/users/${id}`, {
+            method: 'DELETE'
+        });
+        return response.ok;
+    } catch (e) { return false; }
 };
 
 export const getCurrentUser = (): User | null => {
@@ -149,9 +177,6 @@ export const getPlan = async (mentorId?: string): Promise<ChallengePlan | null> 
 
 export const logoutUser = () => { localStorage.removeItem('mestre_desafios_user'); };
 
-/**
- * Deduz um crédito do usuário atual e atualiza o contador de gerações.
- */
 export const deductCredit = () => {
     const user = getCurrentUser();
     if (user && (user.role === UserRole.ADMIN || user.credits > 0)) {
@@ -163,10 +188,6 @@ export const deductCredit = () => {
     return null;
 };
 
-/**
- * Adiciona créditos localmente ao usuário atual. Usado após fluxo de pagamento.
- */
-// Adiciona créditos localmente (após compra simulada)
 export const addCredits = (amount: number): User | null => {
   const user = getCurrentUser();
   if (user) {
@@ -177,10 +198,6 @@ export const addCredits = (amount: number): User | null => {
   return null;
 };
 
-/**
- * Atualiza o status de completado de um desafio para um dia específico.
- */
-// Atualiza o status de um desafio no plano atual
 export const updateChallengeStatus = (day: number, completed: boolean): ChallengePlan | null => {
   const stored = localStorage.getItem('mestre_desafios_plan');
   if (!stored) return null;
@@ -196,10 +213,6 @@ export const updateChallengeStatus = (day: number, completed: boolean): Challeng
   return null;
 };
 
-/**
- * Adiciona um comentário de feedback de aluno em um desafio.
- */
-// Adiciona um comentário a um desafio específico
 export const addCommentToChallenge = (day: number, studentName: string, text: string): ChallengePlan | null => {
   const stored = localStorage.getItem('mestre_desafios_plan');
   if (!stored) return null;

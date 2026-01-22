@@ -4,7 +4,7 @@ import { UserRole, User } from '../types';
 import { 
   Rocket, Zap, ChevronRight, Star, Check, Brain, Crown, 
   Trophy, Target, Instagram, Phone, Mail, User as UserIcon, 
-  Lock, ArrowDown, ShieldCheck, BarChart3, Users, Flame, Sparkles
+  Lock, ArrowDown, ShieldCheck, BarChart3, Users, Flame, Sparkles, X
 } from 'lucide-react';
 import { registerLead, loginAdmin } from '../services/store';
 
@@ -15,19 +15,37 @@ interface LandingPageProps {
 const LandingPage: React.FC<LandingPageProps> = ({ onAuthSuccess }) => {
   const [modalMode, setModalMode] = useState<'register' | 'admin' | null>(null);
   const [formData, setFormData] = useState({ name: '', email: '', phone: '', instagram: '', password: '' });
+  const [isLoading, setIsLoading] = useState(false);
 
-  const handleRegister = (e: React.FormEvent) => {
+  const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.name || !formData.email) return;
-    const user = registerLead(formData);
-    onAuthSuccess(user);
+    setIsLoading(true);
+    try {
+      const user = await registerLead(formData);
+      onAuthSuccess(user);
+    } catch (error) {
+      alert("Erro ao registrar. Tente novamente.");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const handleAdminLogin = (e: React.FormEvent) => {
+  const handleAdminLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    const user = loginAdmin(formData.email, formData.password);
-    if (user) onAuthSuccess(user);
-    else alert("Credenciais administrativas incorretas.");
+    setIsLoading(true);
+    try {
+      const user = await loginAdmin(formData.email, formData.password);
+      if (user) {
+        onAuthSuccess(user);
+      } else {
+        alert("Credenciais administrativas incorretas ou conta bloqueada.");
+      }
+    } catch (error) {
+      alert("Erro ao conectar com o servidor.");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -173,7 +191,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onAuthSuccess }) => {
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-dark/95 backdrop-blur-xl animate-in fade-in duration-300">
           <div className="max-w-md w-full bg-card p-10 rounded-[40px] border border-white/10 shadow-2xl relative">
             <button onClick={() => setModalMode(null)} className="absolute top-6 right-6 text-white/30 hover:text-white transition-colors">
-              <XIcon />
+              <X size={24} />
             </button>
             
             <div className="text-center mb-8">
@@ -201,8 +219,8 @@ const LandingPage: React.FC<LandingPageProps> = ({ onAuthSuccess }) => {
                 <Input icon={<Lock size={18}/>} type="password" placeholder="Senha Mestre" value={formData.password} onChange={(v: string) => setFormData({...formData, password: v})} />
               )}
               
-              <button className="w-full p-6 rounded-3xl bg-primary text-dark font-black text-lg shadow-xl shadow-primary/10 hover:brightness-110 transition-all flex items-center justify-center gap-2">
-                {modalMode === 'register' ? "Desbloquear 3 Créditos" : "Acessar Painel"} <ChevronRight size={20} />
+              <button disabled={isLoading} className="w-full p-6 rounded-3xl bg-primary text-dark font-black text-lg shadow-xl shadow-primary/10 hover:brightness-110 transition-all flex items-center justify-center gap-2 disabled:opacity-50">
+                {isLoading ? "Aguarde..." : (modalMode === 'register' ? "Desbloquear 3 Créditos" : "Acessar Painel")} <ChevronRight size={20} />
               </button>
             </form>
           </div>
@@ -246,13 +264,6 @@ const Input = ({ icon, type = "text", placeholder, value, onChange }: any) => (
       className="w-full bg-dark border border-white/10 rounded-2xl p-4 pl-12 text-white outline-none focus:border-primary transition-all placeholder:text-slate-600"
     />
   </div>
-);
-
-const XIcon = () => (
-  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-    <line x1="18" y1="6" x2="6" y2="18"></line>
-    <line x1="6" y1="6" x2="18" y2="18"></line>
-  </svg>
 );
 
 export default LandingPage;
