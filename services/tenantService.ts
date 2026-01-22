@@ -1,7 +1,8 @@
 
 import { TenantConfig } from '../types';
 
-const API_URL = 'http://localhost:3001/api';
+// Alterado de 'http://localhost:3001/api' para '/api' para evitar erros de Mixed Content (HTTP vs HTTPS)
+const API_URL = '/api';
 
 export const getTenantSlugFromHostname = (): string => {
   const hostname = window.location.hostname;
@@ -22,7 +23,7 @@ export const getTenantSlugFromHostname = (): string => {
 
 export const loadTenantConfig = async (slug: string): Promise<TenantConfig> => {
   try {
-    // 1. Tenta buscar no banco de dados via API
+    // 1. Tenta buscar no banco de dados via API usando caminho relativo
     const response = await fetch(`${API_URL}/tenants/${slug}`);
     if (response.ok) {
       const config = await response.json();
