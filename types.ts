@@ -29,8 +29,8 @@ export interface User {
   stripeCustomerId?: string;
   notificationsEnabled: boolean;
   password?: string;
-  isBlocked: boolean; // Novo campo
-  totalSpent?: number; // Novo campo
+  isBlocked: boolean;
+  totalSpent?: number;
   created_at?: string;
 }
 
@@ -78,6 +78,9 @@ export interface ChallengePlan {
   isGroupPlan: boolean;
   methodology: string;
   isFullVersion: boolean; 
+  accessKey?: string; // Chave para o aluno acessar
+  studentInterests?: string;
+  studentHobbies?: string;
 }
 
 export interface TransformationMapping {
@@ -104,11 +107,13 @@ export interface RegisteredStudent {
   id: string;
   name: string;
   email: string;
+  assignedPlanId?: string;
 }
 
 export interface RegisteredGroup {
   id: string;
   name: string;
+  assignedPlanId?: string;
 }
 
 export interface TenantConfig {
@@ -139,6 +144,7 @@ export interface GeneratePlanPayload {
   student_name: string;
   student_profile: string;
   student_interests: string;
+  student_hobbies?: string;
   health_areas: HealthArea[];
   isGroupPlan: boolean;
   plan_type: string;
@@ -152,7 +158,7 @@ export interface PlanResponse {
   challenges: Omit<Challenge, 'completed' | 'comments'>[];
 }
 
-export type WizardStepId = 'welcome' | 'qualification' | 'method' | 'content-choice' | 'material-upload' | 'avatar-creation' | 'health-areas';
+export type WizardStepId = 'welcome' | 'qualification' | 'method' | 'content-choice' | 'material-upload' | 'avatar-creation' | 'interests' | 'health-areas';
 
 export interface StripePackage {
   id: string;
