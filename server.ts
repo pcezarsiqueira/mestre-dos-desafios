@@ -10,9 +10,9 @@ const app = express();
 app.use(express.json());
 app.use(cors());
 
-// Configurações do Banco de Dados Remoto
+// Configurações do Banco de Dados Remoto Corrigido
 const dbConfig = {
-    host: '72.60.136.5',
+    host: '72.60.136.59',
     user: 'root',
     password: 'Al#!9th18',
     database: 'mestredesafios',
@@ -29,11 +29,11 @@ const connectDB = async () => {
   try {
     pool = mysql.createPool(dbConfig);
     const connection = await pool.getConnection();
-    console.log('✅ [DATABASE] MySQL conectado em 72.60.136.5:3306');
+    console.log('✅ [DATABASE] MySQL conectado em 72.60.136.59:3306');
     connection.release();
   } catch (err: any) {
     console.error('❌ [DATABASE] Erro de conexão:', err.message);
-    console.log('Aguardando reconexão manual ou verificando regras de firewall...');
+    console.log('Aguardando reconexão manual ou verificando regras de firewall no servidor 72.60.136.59...');
   }
 };
 
@@ -97,6 +97,6 @@ app.listen(PORT, '0.0.0.0', () => {
     console.log(`\n🚀 SERVIDOR RODANDO`);
     console.log(`------------------------------`);
     console.log(`URL Local: http://localhost:${PORT}`);
-    console.log(`Status DB: 72.60.136.5`);
+    console.log(`Status DB: 72.60.136.59`);
     console.log(`------------------------------\n`);
 });
