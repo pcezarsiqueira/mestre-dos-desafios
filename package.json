@@ -6,10 +6,11 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "server": "node server.ts",
+    "api": "node server.ts",
     "build": "vite build",
     "preview": "vite preview",
-    "start": "node server.ts"
+    "start": "npm run build && node server.ts",
+    "all": "npm run build && node server.ts"
   },
   "dependencies": {
     "@google/genai": "^1.30.0",

@@ -3,14 +3,19 @@ import express from 'express';
 import mysql from 'mysql2/promise';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import path from 'path';
+import { fileURLToPath } from 'url';
 
 dotenv.config();
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const app = express();
 app.use(express.json());
 app.use(cors());
 
-// Configurações do Banco de Dados Remoto Corrigido
+// Configurações do Banco de Dados Remoto
 const dbConfig = {
     host: '72.60.136.59',
     user: 'root',
@@ -29,11 +34,10 @@ const connectDB = async () => {
   try {
     pool = mysql.createPool(dbConfig);
     const connection = await pool.getConnection();
-    console.log('✅ [DATABASE] MySQL conectado em 72.60.136.59:3306');
+    console.log('✅ [DATABASE] MySQL conectado em 72.60.136.59');
     connection.release();
   } catch (err: any) {
-    console.error('❌ [DATABASE] Erro de conexão:', err.message);
-    console.log('Aguardando reconexão manual ou verificando regras de firewall no servidor 72.60.136.59...');
+    console.error('❌ [DATABASE] Erro MySQL:', err.message);
   }
 };
 
@@ -44,11 +48,7 @@ const ensureDb = (req: any, res: any, next: any) => {
   next();
 };
 
-// Rota raiz para teste rápido
-app.get('/', (req, res) => {
-  res.send('<h1>Mestre dos Desafios API</h1><p>Status: Online na porta 3001</p>');
-});
-
+// --- ROTAS DA API ---
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', database: !!pool });
 });
@@ -78,7 +78,6 @@ app.post('/api/register', ensureDb, async (req, res) => {
         );
         res.status(201).json(user);
     } catch (error) {
-        console.error(error);
         res.status(500).json({ error: 'Erro ao registrar' });
     }
 });
@@ -92,11 +91,23 @@ app.get('/api/admin/users', ensureDb, async (req, res) => {
     }
 });
 
-const PORT = 3001;
-app.listen(PORT, '0.0.0.0', () => {
-    console.log(`\n🚀 SERVIDOR RODANDO`);
-    console.log(`------------------------------`);
-    console.log(`URL Local: http://localhost:${PORT}`);
-    console.log(`Status DB: 72.60.136.59`);
-    console.log(`------------------------------\n`);
+// --- SERVINDO O FRONTEND (ESTÁTICOS) ---
+// Serve a pasta de build do Vite (dist)
+const distPath = path.join(__dirname, 'dist');
+app.use(express.static(distPath));
+
+// Fallback para SPA: qualquer rota que não seja API redireciona para o index.html
+app.get('*', (req, res) => {
+    if (req.path.startsWith('/api')) return res.status(404).json({ error: 'API route not found' });
+    res.sendFile(path.join(distPath, 'index.html'));
+});
+
+const PORT = process.env.PORT || 3001;
+app.listen(PORT, () => {
+    console.log(`\n🚀 MESTRE DOS DESAFIOS - UNIFICADO`);
+    console.log(`----------------------------------`);
+    console.log(`Servidor rodando em: http://localhost:${PORT}`);
+    console.log(`Modo: Produção/Monolítico`);
+    console.log(`API: http://localhost:${PORT}/api`);
+    console.log(`----------------------------------\n`);
 });

@@ -1,13 +1,12 @@
 
 import { ChallengePlan, User, UserRole, BrandingSettings, Mentorship, RegisteredStudent, RegisteredGroup } from "../types";
 
-// Usamos apenas /api porque o Vite Proxy em dev ou o Nginx em prod cuidam do roteamento
+// Como agora o servidor serve tanto a API quanto o Frontend na mesma porta,
+// usamos caminhos relativos que funcionam tanto em dev (via proxy) quanto em prod.
 const API_URL = '/api';
 
-// Fix: Add setStoreTenant export required by TenantContext.tsx (line 5).
 export const setStoreTenant = (slug: string) => {
-  // This function is intended to update the store's tenant context (e.g., storage prefix).
-  console.log(`Setting store tenant to: ${slug}`);
+  console.log(`Tenant definido como: ${slug}`);
 };
 
 export const registerLead = async (data: { name: string, email: string, phone: string, instagram: string }): Promise<User> => {
@@ -40,9 +39,9 @@ export const registerLead = async (data: { name: string, email: string, phone: s
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(newUser)
     });
-    if (response.ok) console.log("✅ Sincronizado com MySQL");
+    if (response.ok) console.log("✅ Dados sincronizados.");
   } catch (e) {
-    console.warn("⚠️ Servidor Offline. Operando em modo LocalStorage.");
+    console.warn("⚠️ Servidor indisponível. Dados mantidos localmente.");
   }
   return newUser;
 };
