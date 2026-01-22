@@ -16,22 +16,28 @@ export const generateChallengePlan = async (payload: GeneratePlanPayload): Promi
     ESTRATEGISTA "METADESAFIOS" - MODO PERSONALIZAÇÃO EXTREMA.
     Você deve criar 21 desafios para o Mentor (${payload.mentor_profile}).
     
-    CONTEXTO DO ALUNO:
+    CONTEXTO DO ALUNO/GRUPO:
     ${contextualInfo}
-    Perfil: ${payload.student_profile}
+    Perfil e Dores: ${payload.student_profile}
 
     REGRAS DE CONTEXTO:
     - Se o aluno tiver interesses específicos (ex: Bíblia, Esportes, Tecnologia), os desafios DEVEM usar esse vocabulário e contexto.
     - Se ele gosta de Bíblia/Evangelho, cite passagens ou princípios aplicados à saúde física/mental.
     - Se gosta de Tecnologia, use analogias de 'sistema', 'upgrade' e 'hardware'.
 
-    ESTRUTURA:
-    - Dias 1-7: Vitórias rápidas.
-    - Dias 8-14: Quebra de padrões.
-    - Dias 15-21: Expansão (Dia 21 é FIRE TRIAL).
+    FONTE DE CONHECIMENTO (ESTRATÉGIA DO MENTOR):
+    ${payload.materials_summary ? `Use o seguinte material base fornecido pelo mentor: \n ${payload.materials_summary}` : "Crie baseado nas melhores práticas do nicho, focando em micro-vitórias."}
+
+    ESTRUTURA DA JORNADA:
+    - Dias 1-7 (ATO 1): Clareza, Diagnóstico e Vitórias rápidas.
+    - Dias 8-14 (ATO 2): Confronto, Quebra de padrões e Incomodidade.
+    - Dias 15-21 (ATO 3): Expansão, Transformação e Dia 21 é o FIRE TRIAL (Ritual de passagem).
     
-    Regras: Áreas (${areasString}), XP (100-500), JSON estrito.
-    ${payload.pdf_base64 ? "Siga rigorosamente o método do PDF anexo." : ""}
+    Regras Técnicas: 
+    - Áreas de Saúde Focais: (${areasString}).
+    - Gamificação: XP (100-500 por desafio).
+    - Saída: JSON estrito.
+    ${payload.pdf_base64 ? "IMPORTANTE: Siga rigorosamente o método contido no arquivo PDF anexado." : ""}
   `;
 
   const healthAreaProperties: Record<string, any> = {};

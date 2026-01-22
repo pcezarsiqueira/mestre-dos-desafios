@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { User, UserRole, ChallengePlan, GeneratePlanPayload, HealthArea } from './types';
+import { User, UserRole, ChallengePlan, GeneratePlanPayload } from './types';
 import * as Store from './services/store';
 import * as GeminiService from './services/geminiService';
 import * as NotificationService from './services/notificationService';
@@ -10,11 +10,10 @@ import BrandingManager from './components/BrandingManager';
 import InsightsPanel from './components/InsightsPanel';
 import ManagementPanel from './components/ManagementPanel';
 import LandingPage from './components/LandingPage';
-import { CONFIG } from './services/config';
 import { useTenant } from './contexts/TenantContext';
 
 const App: React.FC = () => {
-  const { slug, config, isLoading: tenantLoading } = useTenant();
+  const { config, isLoading: tenantLoading } = useTenant();
   const [user, setUser] = useState<User | null>(null);
   const [plan, setPlan] = useState<ChallengePlan | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -23,17 +22,27 @@ const App: React.FC = () => {
   useEffect(() => {
     const loadAppData = async () => {
       if (tenantLoading) return;
-      
       const currentUser = Store.getCurrentUser();
-      if (currentUser) setUser(currentUser);
-      
-      // Correção: getPlan é assíncrono, precisa ser awaitado
-      const currentPlan = await Store.getPlan();
-      setPlan(currentPlan);
+      if (currentUser) {
+          setUser(currentUser);
+          try {
+            // Tenta buscar o plano do banco de dados remoto primeiro
+            const response = await fetch(`/api/plans/${currentUser.id}`);
+            if (response.ok) {
+                const remotePlan = await response.json();
+                setPlan(remotePlan);
+            } else {
+                const currentPlan = await Store.getPlan();
+                setPlan(currentPlan);
+            }
+          } catch (e) {
+            const currentPlan = await Store.getPlan();
+            setPlan(currentPlan);
+          }
+      }
     };
-
     loadAppData();
-  }, [tenantLoading, slug]);
+  }, [tenantLoading]);
 
   const branding = config?.branding || user?.branding;
 
@@ -59,70 +68,52 @@ const App: React.FC = () => {
 
   const handleWizardFinish = async (payload: GeneratePlanPayload) => {
     if (!user) return;
-    
     if (user.credits <= 0 && user.role !== UserRole.ADMIN) {
-      alert("Seus créditos acabaram. Faça o upgrade para continuar transformando vidas!");
+      alert("Créditos insuficientes.");
       return;
     }
     
-    // Regra: se generationsCount for 0, é full. Se 1 ou 2, é 7 dias. Se Admin, é sempre full.
-    const isFreeGeneration = user.role !== UserRole.ADMIN && user.generationsCount > 0 && user.generationsCount < 3;
-    const isFullGeneration = user.role === UserRole.ADMIN || user.generationsCount === 0 || payload.forceFullGeneration;
-
     setIsGenerating(true);
-
     try {
         const result = await GeminiService.generateChallengePlan(payload);
-        
-        // Se for geração limitada, filtramos apenas os 7 primeiros desafios
-        const challengesToSave = isFullGeneration 
-          ? result.challenges 
-          : result.challenges.filter(c => c.day <= 7);
-
         const newPlan: ChallengePlan = {
           id: crypto.randomUUID(),
           mentorId: user.id,
           studentName: payload.student_name,
-          niche: payload.mentor_profile.substring(0, 50),
+          niche: payload.mentor_profile,
           selectedAreas: payload.health_areas,
-          planTitle: result.plan_title + (isFullGeneration ? "" : " (Versão Teste 7 Dias)"),
+          planTitle: result.plan_title,
           planDescription: result.description,
           transformationMapping: result.transformation_mapping,
-          isFullVersion: isFullGeneration,
-          challenges: challengesToSave.map((c: any) => ({ 
-            ...c, 
-            completed: false,
-            comments: [] 
-          })),
+          isFullVersion: true,
+          challenges: result.challenges.map((c: any) => ({ ...c, completed: false, comments: [] })),
           createdAt: new Date().toISOString(),
           isGroupPlan: payload.isGroupPlan,
           methodology: 'METADESAFIOS'
         };
         
+        // Salva no banco de dados remoto
+        await fetch('/api/plans', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(newPlan)
+        });
+
         await Store.savePlan(newPlan);
         const updatedUser = Store.deductCredit();
         if (updatedUser) setUser(updatedUser);
         
         setPlan(newPlan);
         setActiveTab('dashboard');
-
-        if (!isFullGeneration) {
-          alert("Você utilizou um crédito de teste. Esta jornada contém os primeiros 7 dias estratégicos. Adquira o plano completo para desbloquear os 21 dias!");
-        }
-
     } catch (error) {
-        console.error("Erro na geração:", error);
-        alert("Erro ao gerar jornada. Tente novamente.");
+        alert("Erro na geração.");
     } finally {
         setIsGenerating(false);
     }
   };
 
   if (tenantLoading) return null;
-
-  if (!user) {
-    return <LandingPage onAuthSuccess={handleAuthSuccess} />;
-  }
+  if (!user) return <LandingPage onAuthSuccess={handleAuthSuccess} />;
 
   const isMentorMode = user.role === UserRole.MENTOR || user.role === UserRole.ADMIN;
 
@@ -149,13 +140,9 @@ const App: React.FC = () => {
           <div className="flex items-center gap-4">
             <div className="text-right">
               <p className="text-sm font-bold text-white leading-none">{user.name}</p>
-              <p className="text-[10px] uppercase font-black text-primary-custom">
-                {user.role === UserRole.ADMIN ? 'SUPER ADMIN' : `${user.credits} CRÉDITOS`}
-              </p>
+              <p className="text-[10px] uppercase font-black text-primary-custom">{user.credits} CRÉDITOS</p>
             </div>
-            <button onClick={handleLogout} className="text-slate-500 hover:text-white transition-colors">
-              <i className="ri-logout-box-line text-lg"></i>
-            </button>
+            <button onClick={handleLogout} className="text-slate-500 hover:text-white transition-colors"><i className="ri-logout-box-line text-lg"></i></button>
           </div>
         </div>
       </nav>
@@ -170,27 +157,17 @@ const App: React.FC = () => {
                   <div>
                     <h1 className="font-mont text-4xl font-black text-white mb-2">{plan.planTitle}</h1>
                     <p className="text-slate-400 max-w-2xl">{plan.planDescription}</p>
-                    {!plan.isFullVersion && (
-                      <div className="mt-4 px-4 py-2 bg-yellow-500/10 border border-yellow-500/20 text-yellow-500 rounded-xl text-xs font-bold inline-flex items-center gap-2">
-                        <i className="ri-error-warning-line"></i> VERSÃO LIMITADA (7 DIAS) - FAÇA O UPGRADE PARA 21 DIAS
-                      </div>
-                    )}
                   </div>
-                  <button 
-                    onClick={() => { if(confirm("Apagar jornada atual?")) { setPlan(null); Store.savePlan(null); } }}
-                    className="bg-red-500/10 text-red-400 border border-red-500/20 px-6 py-3 rounded-2xl text-sm font-bold hover:bg-red-500 hover:text-white transition-all"
-                  >
-                    Nova Jornada
-                  </button>
+                  <button onClick={() => { if(confirm("Apagar jornada atual?")) { setPlan(null); Store.savePlan(null); } }} className="bg-red-500/10 text-red-400 border border-red-500/20 px-6 py-3 rounded-2xl text-sm font-bold hover:bg-red-500 hover:text-white transition-all">Nova Jornada</button>
                 </div>
                 <Dashboard plan={plan} onUpdate={setPlan} isMentorView={user.role !== UserRole.STUDENT} />
               </div>
             )}
           </>
         )}
-        {activeTab === 'management' && <ManagementPanel />}
-        {activeTab === 'insights' && plan && <InsightsPanel plan={plan} />}
-        {activeTab === 'settings' && <BrandingManager user={user} onUpdate={setUser} />}
+        {activeTab === 'management' && <ManagementPanel onBack={() => setActiveTab('dashboard')} />}
+        {activeTab === 'insights' && plan && <InsightsPanel plan={plan} onBack={() => setActiveTab('dashboard')} />}
+        {activeTab === 'settings' && <BrandingManager user={user} onUpdate={setUser} onBack={() => setActiveTab('dashboard')} />}
       </main>
     </div>
   );

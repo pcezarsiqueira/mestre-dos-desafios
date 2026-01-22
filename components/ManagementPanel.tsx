@@ -3,31 +3,41 @@ import React, { useState, useEffect } from 'react';
 import { Mentorship, RegisteredStudent, RegisteredGroup, ChallengePlan, User, UserRole } from '../types';
 import * as Store from '../services/store';
 import { saveTenantConfig } from '../services/tenantService';
-import { 
-  Users, Target, Rocket, Globe, AlertTriangle, Loader2, ShieldAlert, Ban, Unlock, Edit3, Trash2, Save, X, Key, Share2
-} from 'lucide-react';
-import { useTenant } from '../contexts/TenantContext';
+import { Users, Target, Rocket, Globe, Loader2, Key, Share2, ArrowLeft, Shield, AlertCircle } from 'lucide-react';
 
-const ManagementPanel: React.FC = () => {
-  const { config: tenantConfig } = useTenant();
+interface ManagementPanelProps {
+    onBack: () => void;
+}
+
+const ManagementPanel: React.FC<ManagementPanelProps> = ({ onBack }) => {
   const currentUser = Store.getCurrentUser();
   const [allUsers, setAllUsers] = useState<User[]>([]);
   const [plan, setPlan] = useState<ChallengePlan | null>(null);
   const [slug, setSlug] = useState('');
   const [isSaving, setIsSaving] = useState(false);
-  const [activeAdminTab, setActiveAdminTab] = useState<'portal' | 'users' | 'profile'>('portal');
+  const [isLoadingUsers, setIsLoadingUsers] = useState(false);
+  const [activeAdminTab, setActiveAdminTab] = useState<'portal' | 'users'>('portal');
 
   useEffect(() => {
     Store.getPlan().then(p => {
         setPlan(p);
         if (p) setSlug(currentUser?.name.toLowerCase().replace(/\s/g, '-') || '');
     });
-    if (currentUser?.role === UserRole.ADMIN) loadAllUsers();
-  }, []);
+    if (currentUser?.role === UserRole.ADMIN) {
+        loadAllUsers();
+    }
+  }, [currentUser?.role]);
 
   const loadAllUsers = async () => {
-    const users = await Store.fetchAllUsers();
-    setAllUsers(Array.isArray(users) ? users : []);
+    setIsLoadingUsers(true);
+    try {
+        const users = await Store.fetchAllUsers();
+        setAllUsers(users);
+    } catch (e) {
+        console.error(e);
+    } finally {
+        setIsLoadingUsers(false);
+    }
   };
 
   const handleSaveSubdomain = async () => {
@@ -51,9 +61,15 @@ const ManagementPanel: React.FC = () => {
   return (
     <div className="space-y-8 animate-in fade-in duration-500 pb-20">
       
+      <div className="flex items-center justify-between mb-4">
+        <button onClick={onBack} className="flex items-center gap-2 text-slate-500 hover:text-white transition-colors font-bold text-sm">
+          <ArrowLeft size={18} /> Voltar ao Dashboard
+        </button>
+      </div>
+
       <div className="flex gap-4 mb-8 bg-card/50 p-1 rounded-2xl border border-white/10 w-fit mx-auto">
           <button onClick={() => setActiveAdminTab('portal')} className={`px-6 py-2 rounded-xl text-sm font-black transition-all ${activeAdminTab === 'portal' ? 'bg-primary text-dark' : 'text-slate-400'}`}>Domínio do Mentor</button>
-          {currentUser?.role === UserRole.ADMIN && <button onClick={() => setActiveAdminTab('users')} className={`px-6 py-2 rounded-xl text-sm font-black transition-all ${activeAdminTab === 'users' ? 'bg-primary text-dark' : 'text-slate-400'}`}>Usuários</button>}
+          {currentUser?.role === UserRole.ADMIN && <button onClick={() => setActiveAdminTab('users')} className={`px-6 py-2 rounded-xl text-sm font-black transition-all ${activeAdminTab === 'users' ? 'bg-primary text-dark' : 'text-slate-400'}`}>Gestão de Usuários</button>}
       </div>
 
       {activeAdminTab === 'portal' && (
@@ -64,7 +80,7 @@ const ManagementPanel: React.FC = () => {
                         <div className="w-16 h-16 bg-primary/10 rounded-2xl flex items-center justify-center text-primary"><Globe size={32} /></div>
                         <div>
                           <h3 className="font-mont text-2xl font-black text-white">Configuração do Subdomínio</h3>
-                          <p className="text-slate-400 text-sm">Este é o portal que seus alunos usarão para entrar.</p>
+                          <p className="text-slate-400 text-sm">Personalize o endereço de acesso dos seus alunos.</p>
                         </div>
                    </div>
                    
@@ -73,23 +89,15 @@ const ManagementPanel: React.FC = () => {
                         <div>
                           <label className="block text-xs font-black text-slate-500 uppercase mb-3">Nome do Subdomínio</label>
                           <div className="flex items-center gap-2">
-                            <input type="text" className="flex-1 bg-dark border border-white/10 rounded-2xl p-5 text-white outline-none focus:border-primary transition-all font-mono" placeholder="meu-portal" value={slug} onChange={e => setSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))} />
-                            <span className="text-slate-500 font-bold">.mestredosdesafios.com.br</span>
+                            <input type="text" className="flex-1 bg-dark border border-white/10 rounded-2xl p-5 text-white outline-none focus:border-primary font-mono" placeholder="meu-portal" value={slug} onChange={e => setSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))} />
                           </div>
-                        </div>
-                        <div className="p-6 bg-primary/5 border border-primary/10 rounded-2xl flex gap-4">
-                          <Key className="text-primary shrink-0" size={20} />
-                          <p className="text-xs text-slate-400 leading-relaxed">Cada aluno receberá uma <strong>Chave de Acesso</strong> única para visualizar sua jornada personalizada neste endereço.</p>
+                          <p className="mt-2 text-[10px] text-slate-500">Ex: {slug || 'seu-nome'}.mestredosdesafios.com.br</p>
                         </div>
                       </div>
 
                       <div className="bg-dark p-8 rounded-3xl border border-white/5 flex flex-col justify-center items-center text-center space-y-6">
-                         <p className="text-slate-500 text-xs font-bold uppercase tracking-widest">Visualização do Link</p>
-                         <div className="text-xl font-black text-white flex items-center gap-1">
-                           <span className="text-primary">{slug || '...'}</span><span className="opacity-40">.mestredosdesafios.com.br</span>
-                         </div>
                          <button onClick={handleSaveSubdomain} disabled={!slug || isSaving} className="px-10 py-5 bg-primary text-dark rounded-2xl font-black hover:scale-105 transition-all shadow-xl flex items-center gap-3">
-                           {isSaving ? <Loader2 className="animate-spin" /> : <Rocket size={20} />} Publicar Subdomínio
+                           {isSaving ? <Loader2 className="animate-spin" /> : <Rocket size={20} />} Ativar Portal
                          </button>
                       </div>
                    </div>
@@ -99,13 +107,62 @@ const ManagementPanel: React.FC = () => {
               {plan && (
                 <div className="bg-card p-10 rounded-[40px] border border-white/5 shadow-xl flex items-center justify-between">
                    <div>
-                     <h4 className="text-[10px] font-black text-slate-500 uppercase mb-1">Jornada Ativa</h4>
+                     <h4 className="text-[10px] font-black text-slate-500 uppercase mb-1">Jornada Vinculada</h4>
                      <p className="text-xl font-black text-white">{plan.planTitle}</p>
                    </div>
                    <button className="flex items-center gap-2 p-4 bg-white/5 hover:bg-white/10 rounded-2xl text-white transition-all">
-                     <Share2 size={18} /> <span className="text-sm font-bold">Enviar para Aluno</span>
+                     <Share2 size={18} /> <span className="text-sm font-bold">Compartilhar</span>
                    </button>
                 </div>
+              )}
+          </div>
+      )}
+
+      {activeAdminTab === 'users' && currentUser?.role === UserRole.ADMIN && (
+          <div className="max-w-6xl mx-auto bg-card rounded-[32px] border border-white/10 overflow-hidden">
+              {isLoadingUsers ? (
+                  <div className="p-20 flex flex-col items-center gap-4 text-slate-500">
+                      <Loader2 className="animate-spin" size={40} />
+                      <p className="font-bold">Carregando usuários do MySQL...</p>
+                  </div>
+              ) : allUsers.length === 0 ? (
+                  <div className="p-20 flex flex-col items-center gap-4 text-slate-500">
+                      <AlertCircle size={40} />
+                      <p className="font-bold text-lg">Nenhum usuário encontrado no banco de dados.</p>
+                      <button onClick={loadAllUsers} className="text-primary hover:underline font-bold">Tentar novamente</button>
+                  </div>
+              ) : (
+                  <table className="w-full text-left">
+                      <thead className="bg-dark/50 border-b border-white/10">
+                          <tr>
+                              <th className="p-6 text-[10px] font-black text-slate-500 uppercase">Usuário</th>
+                              <th className="p-6 text-[10px] font-black text-slate-500 uppercase">Cargo</th>
+                              <th className="p-6 text-[10px] font-black text-slate-500 uppercase">Créditos</th>
+                              <th className="p-6 text-[10px] font-black text-slate-500 uppercase text-right">Ações</th>
+                          </tr>
+                      </thead>
+                      <tbody>
+                          {allUsers.map(u => (
+                              <tr key={u.id} className="border-b border-white/5 hover:bg-white/5 transition-colors">
+                                  <td className="p-6">
+                                      <p className="text-sm font-bold text-white">{u.name}</p>
+                                      <p className="text-xs text-slate-500">{u.email}</p>
+                                  </td>
+                                  <td className="p-6">
+                                      <span className={`text-[9px] font-black px-2 py-1 rounded-full ${u.role === UserRole.ADMIN ? 'bg-primary/20 text-primary' : 'bg-slate-500/20 text-slate-500'}`}>
+                                          {u.role}
+                                      </span>
+                                  </td>
+                                  <td className="p-6">
+                                      <span className="text-sm font-black text-white">{u.credits}</span>
+                                  </td>
+                                  <td className="p-6 text-right">
+                                      <button className="text-slate-500 hover:text-white"><Shield size={18} /></button>
+                                  </td>
+                              </tr>
+                          ))}
+                      </tbody>
+                  </table>
               )}
           </div>
       )}

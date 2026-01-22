@@ -1,7 +1,7 @@
 
 import { TenantConfig } from '../types';
 
-// Alterado de 'http://localhost:3001/api' para '/api' para evitar erros de Mixed Content (HTTP vs HTTPS)
+// Usamos '/api' relativo. O navegador completará automaticamente para https://mestredosdesafios.com.br/api
 const API_URL = '/api';
 
 export const getTenantSlugFromHostname = (): string => {
@@ -12,18 +12,21 @@ export const getTenantSlugFromHostname = (): string => {
   }
 
   const parts = hostname.split('.');
-  if (parts.length > 2) {
-    const slug = parts[0];
-    if (slug === 'www' || slug === 'app') return 'default';
-    return slug;
+  // Caso mestredosdesafios.com.br (sem subdominio)
+  if (parts.length <= 2) {
+      return 'default';
   }
 
-  return 'default';
+  // Captura o subdomínio (ex: jhon.mestredosdesafios.com.br -> jhon)
+  const slug = parts[0];
+  if (slug === 'www' || slug === 'app' || slug === 'mestredosdesafios') return 'default';
+  
+  return slug;
 };
 
 export const loadTenantConfig = async (slug: string): Promise<TenantConfig> => {
   try {
-    // 1. Tenta buscar no banco de dados via API usando caminho relativo
+    // 1. Tenta buscar no banco de dados via API
     const response = await fetch(`${API_URL}/tenants/${slug}`);
     if (response.ok) {
       const config = await response.json();
@@ -45,9 +48,12 @@ export const loadTenantConfig = async (slug: string): Promise<TenantConfig> => {
 
     throw new Error('Config not found');
   } catch (error) {
-    console.warn(`Config para [${slug}] não encontrada. Usando default.`);
-    if (slug !== 'default') return loadTenantConfig('default');
+    if (slug !== 'default') {
+        console.warn(`Slug [${slug}] não encontrado no banco. Tentando carregar [default].`);
+        return loadTenantConfig('default');
+    }
     
+    // Configuração mínima de segurança se tudo falhar
     return {
       slug: 'default',
       isAdminTenant: true,

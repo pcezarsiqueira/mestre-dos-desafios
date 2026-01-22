@@ -1,8 +1,7 @@
 
 import { ChallengePlan, User, UserRole, BrandingSettings, Mentorship, RegisteredStudent, RegisteredGroup } from "../types";
 
-// Como agora o servidor serve tanto a API quanto o Frontend na mesma porta,
-// usamos caminhos relativos que funcionam tanto em dev (via proxy) quanto em prod.
+// Usamos '/api' relativo para evitar erros de Mixed Content (HTTP vs HTTPS)
 const API_URL = '/api';
 
 export const setStoreTenant = (slug: string) => {
@@ -39,14 +38,15 @@ export const registerLead = async (data: { name: string, email: string, phone: s
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(newUser)
     });
-    if (response.ok) console.log("✅ Dados sincronizados.");
+    if (response.ok) console.log("✅ Dados sincronizados no MySQL.");
   } catch (e) {
-    console.warn("⚠️ Servidor indisponível. Dados mantidos localmente.");
+    console.warn("⚠️ Servidor indisponível ou erro de rede. Dados mantidos localmente.");
   }
   return newUser;
 };
 
 export const loginAdmin = async (email: string, pass: string): Promise<User | null> => {
+    // Login local para o admin mestre se o banco falhar
     if (email === 'admin@mestre.com' && pass === 'mestre@123') {
         const admin: User = { id: 'admin-001', name: 'Mestre Admin', email: 'admin@mestre.com', role: UserRole.ADMIN, credits: 999, generationsCount: 0, notificationsEnabled: true, isBlocked: false };
         localStorage.setItem('mestre_desafios_user', JSON.stringify(admin));
@@ -65,7 +65,9 @@ export const loginAdmin = async (email: string, pass: string): Promise<User | nu
             localStorage.setItem('mestre_desafios_user', JSON.stringify(user));
             return user;
         }
-    } catch (e) {}
+    } catch (e) {
+        console.error("Erro no login local:", e);
+    }
     
     const stored = getCurrentUser();
     if (stored && stored.email === email) return stored;
@@ -75,8 +77,13 @@ export const loginAdmin = async (email: string, pass: string): Promise<User | nu
 export const fetchAllUsers = async (): Promise<User[]> => {
     try {
         const response = await fetch(`${API_URL}/admin/users`);
-        if (response.ok) return await response.json();
-    } catch (e) {}
+        if (response.ok) {
+            const data = await response.json();
+            return Array.isArray(data) ? data : [];
+        }
+    } catch (e) {
+        console.error("Falha ao buscar usuários do admin:", e);
+    }
     return [];
 };
 
