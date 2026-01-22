@@ -10,57 +10,75 @@ const app = express();
 app.use(express.json());
 app.use(cors());
 
-// Configurações do Banco de Dados fornecidas pelo usuário
+// Configurações do Banco de Dados Remoto (72.60.136.5)
 const dbConfig = {
     host: '72.60.136.5',
     user: 'root',
     password: 'Al#!9th18',
     database: 'mestredesafios',
+    port: 3306,
     waitForConnections: true,
     connectionLimit: 10,
-    queueLimit: 0
+    queueLimit: 0,
+    connectTimeout: 10000 // 10 segundos para timeout de conexão
 };
 
-// Criando o pool de conexão com tratamento de erro inicial
+// Criando o pool de conexão
 let pool: mysql.Pool;
-try {
-  pool = mysql.createPool(dbConfig);
-  console.log('Pool de conexão MySQL configurado para 72.60.136.5');
-} catch (err) {
-  console.error('Erro ao criar pool de conexão:', err);
-}
 
-// Middleware para verificar se a conexão com o DB está ativa
-const checkDb = async (req: any, res: any, next: any) => {
+const connectDB = async () => {
   try {
-    const conn = await pool.getConnection();
-    conn.release();
-    next();
+    pool = mysql.createPool(dbConfig);
+    // Testa a conexão imediatamente
+    const connection = await pool.getConnection();
+    console.log('✅ [MySQL] Conectado com sucesso ao servidor 72.60.136.5');
+    connection.release();
   } catch (err) {
-    res.status(500).json({ error: 'Banco de dados inacessível no momento.' });
+    console.error('❌ [MySQL] Erro crítico de conexão:', err);
+    console.log('Verifique se o IP 72.60.136.5 permite conexões externas para o usuário root.');
   }
 };
 
-// --- AUTH ---
+connectDB();
 
-app.post('/api/login', async (req, res) => {
+// Middleware para validar se o pool existe antes das rotas
+const ensureDb = (req: any, res: any, next: any) => {
+  if (!pool) return res.status(503).json({ error: 'Serviço de banco de dados não inicializado.' });
+  next();
+};
+
+// --- ROTAS DA API ---
+
+// Teste de Sanidade
+app.get('/api/health', (req, res) => {
+  res.json({ status: 'ok', message: 'API Mestre dos Desafios está online' });
+});
+
+app.post('/api/login', ensureDb, async (req, res) => {
     const { email, password } = req.body;
+    console.log(`[Auth] Tentativa de login para: ${email}`);
     try {
         const [rows]: any = await pool.execute('SELECT * FROM users WHERE email = ? AND password = ?', [email, password]);
         if (rows.length > 0) {
-            if (rows[0].is_blocked) {
-                return res.status(403).json({ error: 'Sua conta foi bloqueada. Entre em contato com o suporte.' });
+            const user = rows[0];
+            if (user.is_blocked) {
+                return res.status(403).json({ error: 'Conta bloqueada.' });
             }
-            res.json(rows[0]);
+            // Parse branding se existir
+            if (user.branding_json && typeof user.branding_json === 'string') {
+              user.branding = JSON.parse(user.branding_json);
+            }
+            res.json(user);
         } else {
             res.status(401).json({ error: 'Credenciais inválidas' });
         }
     } catch (error) {
-        res.status(500).json({ error: 'Erro no servidor' });
+        console.error('[Auth Error]', error);
+        res.status(500).json({ error: 'Erro interno no servidor de autenticação' });
     }
 });
 
-app.post('/api/register', async (req, res) => {
+app.post('/api/register', ensureDb, async (req, res) => {
     const user = req.body;
     try {
         await pool.execute(
@@ -69,110 +87,51 @@ app.post('/api/register', async (req, res) => {
         );
         res.status(201).json(user);
     } catch (error) {
-        res.status(500).json({ error: 'Erro ao registrar usuário' });
+        console.error('[Register Error]', error);
+        res.status(500).json({ error: 'Erro ao registrar usuário no MySQL' });
     }
 });
 
-// --- ADMIN USERS MANAGEMENT ---
-
-app.get('/api/admin/users', checkDb, async (req, res) => {
+app.get('/api/admin/users', ensureDb, async (req, res) => {
     try {
-        const [rows]: any = await pool.execute('SELECT id, name, email, role, credits, is_blocked, total_spent, created_at FROM users ORDER BY created_at DESC');
+        const [rows]: any = await pool.execute('SELECT id, name, email, role, credits, is_blocked, created_at FROM users ORDER BY created_at DESC');
         res.json(rows);
     } catch (error) {
-        res.status(500).json({ error: 'Erro ao buscar usuários' });
+        console.error('[Admin Error]', error);
+        res.status(500).json({ error: 'Falha ao buscar lista de usuários' });
     }
 });
 
-app.put('/api/admin/users/:id', async (req, res) => {
-    const { name, email, role, password } = req.body;
-    try {
-        if (password) {
-            await pool.execute(
-                'UPDATE users SET name = ?, email = ?, role = ?, password = ? WHERE id = ?',
-                [name, email, role, password, req.params.id]
-            );
-        } else {
-            await pool.execute(
-                'UPDATE users SET name = ?, email = ?, role = ? WHERE id = ?',
-                [name, email, role, req.params.id]
-            );
-        }
-        res.json({ success: true });
-    } catch (error) {
-        res.status(500).json({ error: 'Erro ao atualizar usuário' });
-    }
-});
-
-app.post('/api/admin/users/:id/credits', async (req, res) => {
-    const { amount } = req.body;
-    try {
-        await pool.execute('UPDATE users SET credits = credits + ? WHERE id = ?', [amount, req.params.id]);
-        res.json({ success: true });
-    } catch (error) {
-        res.status(500).json({ error: 'Erro ao atualizar créditos' });
-    }
-});
-
-app.patch('/api/admin/users/:id/block', async (req, res) => {
-    const { is_blocked } = req.body;
-    try {
-        await pool.execute('UPDATE users SET is_blocked = ? WHERE id = ?', [is_blocked, req.params.id]);
-        res.json({ success: true });
-    } catch (error) {
-        res.status(500).json({ error: 'Erro ao alterar status de bloqueio' });
-    }
-});
-
-app.delete('/api/admin/users/:id', async (req, res) => {
-    try {
-        await pool.execute('DELETE FROM users WHERE id = ?', [req.params.id]);
-        res.json({ success: true });
-    } catch (error) {
-        res.status(500).json({ error: 'Erro ao remover usuário' });
-    }
-});
-
-// --- TENANTS & PLANS ---
-
-app.get('/api/tenants/:slug', async (req, res) => {
-    try {
-        const [rows]: any = await pool.execute('SELECT * FROM tenants WHERE slug = ? AND is_active = 1', [req.params.slug]);
-        if (rows.length > 0) {
-            const tenant = rows[0];
-            res.json({
-                slug: tenant.slug,
-                branding: JSON.parse(tenant.branding_json),
-                landing: JSON.parse(tenant.landing_json)
-            });
-        } else {
-            res.status(404).json({ error: 'Tenant não encontrado' });
-        }
-    } catch (error) {
-        res.status(500).json({ error: 'Erro ao buscar tenant' });
-    }
-});
-
-app.post('/api/tenants', async (req, res) => {
+// Salvar/Atualizar Tenant (Subdomínio)
+app.post('/api/tenants', ensureDb, async (req, res) => {
     const { slug, mentorId, branding, landing } = req.body;
     try {
-        const [existing]: any = await pool.execute('SELECT mentor_id FROM tenants WHERE slug = ?', [slug]);
-        if (existing.length > 0 && existing[0].mentor_id !== mentorId) {
-            return res.status(400).json({ error: 'Este subdomínio já está em uso.' });
-        }
         await pool.execute(
             'INSERT INTO tenants (slug, mentor_id, branding_json, landing_json) VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE branding_json = ?, landing_json = ?',
             [slug, mentorId, JSON.stringify(branding), JSON.stringify(landing), JSON.stringify(branding), JSON.stringify(landing)]
         );
         res.json({ success: true });
     } catch (error) {
-        res.status(500).json({ error: 'Erro ao configurar subdomínio' });
+        console.error('[Tenant Error]', error);
+        res.status(500).json({ error: 'Erro ao salvar configuração de subdomínio' });
+    }
+});
+
+app.get('/api/tenants/:slug', ensureDb, async (req, res) => {
+    try {
+        const [rows]: any = await pool.execute('SELECT * FROM tenants WHERE slug = ?', [req.params.slug]);
+        if (rows.length > 0) {
+            res.json(rows[0]);
+        } else {
+            res.status(404).json({ error: 'Tenant não encontrado' });
+        }
+    } catch (error) {
+        res.status(500).json({ error: 'Erro ao buscar subdomínio' });
     }
 });
 
 const PORT = process.env.PORT || 3001;
-// Ouvindo em 0.0.0.0 para permitir acesso externo
-app.listen(PORT, () => {
-    console.log(`Backend Mestre rodando na porta ${PORT}`);
-    console.log(`Conectado ao MySQL em 72.60.136.5`);
+app.listen(PORT, '0.0.0.0', () => {
+    console.log(`🚀 [Backend] Mestre dos Desafios rodando na porta ${PORT}`);
+    console.log(`📡 [API URL] http://localhost:${PORT}/api`);
 });

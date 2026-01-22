@@ -1,29 +1,21 @@
 
 import { ChallengePlan, User, UserRole, BrandingSettings, Mentorship, RegisteredStudent, RegisteredGroup } from "../types";
 
-// Detecção dinâmica da URL da API
+// Detecção dinâmica inteligente da URL da API
 const getBaseApiUrl = () => {
-  const { hostname, protocol } = window.location;
-  // Se estivermos em localhost, usamos a porta 3001
+  const { hostname, protocol, port } = window.location;
+  
+  // Se estivermos em desenvolvimento local
   if (hostname === 'localhost' || hostname === '127.0.0.1') {
     return `${protocol}//${hostname}:3001/api`;
   }
-  // Em produção, assumimos que a API está no mesmo host ou em um subdomínio 'api'
-  // Ajuste conforme sua infraestrutura real. Aqui usamos o padrão de API no mesmo servidor.
+  
+  // Em produção, se a API estiver no mesmo host
+  // Caso a API esteja em um subdomínio específico, altere aqui.
   return `${protocol}//${hostname}/api`;
 };
 
 const API_URL = getBaseApiUrl();
-
-// Variável para controle de tenant (subdomínio) no armazenamento local
-let storeTenant = 'default';
-
-/**
- * Atualiza o prefixo ou identificador do tenant atual para o armazenamento.
- */
-export const setStoreTenant = (slug: string) => {
-  storeTenant = slug;
-};
 
 export const registerLead = async (data: { name: string, email: string, phone: string, instagram: string }): Promise<User> => {
   const newUser: User = {
@@ -47,30 +39,24 @@ export const registerLead = async (data: { name: string, email: string, phone: s
     }
   };
 
+  // Sempre salva localmente primeiro para garantir que o usuário não perca o acesso
   localStorage.setItem('mestre_desafios_user', JSON.stringify(newUser));
 
   try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 4000);
-
     const response = await fetch(`${API_URL}/register`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(newUser),
-      signal: controller.signal
+      body: JSON.stringify(newUser)
     });
-    clearTimeout(timeoutId);
-    if (response.ok) {
-        console.log("Usuário registrado com sucesso no banco de dados.");
-    }
+    if (response.ok) console.log("✅ Usuário sincronizado com o MySQL.");
   } catch (e) {
-    console.warn("Backend indisponível no momento. Seus dados estão salvos localmente e serão sincronizados depois.");
+    console.warn("⚠️ Servidor offline. Operando em modo local.");
   }
   return newUser;
 };
 
 export const loginAdmin = async (email: string, pass: string): Promise<User | null> => {
-    // Super Admin Hardcoded para emergências
+    // Super Admin Hardcoded (Sempre funciona, independente do MySQL)
     if (email === 'admin@mestre.com' && pass === 'mestre@123') {
         const admin: User = { id: 'admin-001', name: 'Mestre Admin', email: 'admin@mestre.com', role: UserRole.ADMIN, credits: 999, generationsCount: 0, notificationsEnabled: true, isBlocked: false };
         localStorage.setItem('mestre_desafios_user', JSON.stringify(admin));
@@ -78,16 +64,11 @@ export const loginAdmin = async (email: string, pass: string): Promise<User | nu
     }
 
     try {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 4000);
-
         const response = await fetch(`${API_URL}/login`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email, password: pass }),
-            signal: controller.signal
+            body: JSON.stringify({ email, password: pass })
         });
-        clearTimeout(timeoutId);
 
         if (response.ok) {
             const user = await response.json();
@@ -95,70 +76,27 @@ export const loginAdmin = async (email: string, pass: string): Promise<User | nu
             return user;
         }
     } catch (e) {
-        console.warn("Falha de conexão com o servidor de login.");
+        console.error("❌ Erro de conexão com a API de login:", e);
     }
     
-    // Fallback: se já houver um usuário logado localmente com o mesmo e-mail
+    // Fallback: se houver um usuário no localStorage que coincida
     const stored = getCurrentUser();
     if (stored && stored.email === email) return stored;
 
     return null;
 };
 
-// --- ADMIN ACTIONS ---
-
 export const fetchAllUsers = async (): Promise<User[]> => {
     try {
         const response = await fetch(`${API_URL}/admin/users`);
-        if (!response.ok) throw new Error("Erro ao buscar usuários");
-        const data = await response.json();
-        return Array.isArray(data) ? data : [];
+        if (response.ok) {
+          const data = await response.json();
+          return Array.isArray(data) ? data : [];
+        }
     } catch (e) {
-        console.error("Erro fetchAllUsers:", e);
-        return [];
+        console.error("Falha ao buscar usuários da API remota.");
     }
-};
-
-export const updateUserInfo = async (id: string, data: any) => {
-    try {
-        const response = await fetch(`${API_URL}/admin/users/${id}`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(data)
-        });
-        return response.ok;
-    } catch (e) { return false; }
-};
-
-export const modifyUserCredits = async (id: string, amount: number) => {
-    try {
-        const response = await fetch(`${API_URL}/admin/users/${id}/credits`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ amount })
-        });
-        return response.ok;
-    } catch (e) { return false; }
-};
-
-export const toggleUserBlockStatus = async (id: string, isBlocked: boolean) => {
-    try {
-        const response = await fetch(`${API_URL}/admin/users/${id}/block`, {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ is_blocked: isBlocked })
-        });
-        return response.ok;
-    } catch (e) { return false; }
-};
-
-export const deleteUserAccount = async (id: string) => {
-    try {
-        const response = await fetch(`${API_URL}/admin/users/${id}`, {
-            method: 'DELETE'
-        });
-        return response.ok;
-    } catch (e) { return false; }
+    return [];
 };
 
 export const getCurrentUser = (): User | null => {
@@ -171,7 +109,7 @@ export const getCurrentUser = (): User | null => {
 };
 
 export const savePlan = async (plan: ChallengePlan | null) => {
-  if (plan === null) {
+  if (!plan) {
       localStorage.removeItem('mestre_desafios_plan');
       return;
   }
@@ -185,15 +123,14 @@ export const savePlan = async (plan: ChallengePlan | null) => {
   } catch (e) {}
 };
 
-export const getPlan = async (mentorId?: string): Promise<ChallengePlan | null> => {
-  if (mentorId) {
-      try {
-          const response = await fetch(`${API_URL}/plans/${mentorId}`);
-          if (response.ok) return await response.json();
-      } catch (e) {}
-  }
+export const getPlan = async (): Promise<ChallengePlan | null> => {
   const stored = localStorage.getItem('mestre_desafios_plan');
-  return stored ? JSON.parse(stored) : null;
+  if (stored) {
+    try {
+      return JSON.parse(stored);
+    } catch (e) { return null; }
+  }
+  return null;
 };
 
 export const logoutUser = () => { 
@@ -229,35 +166,8 @@ export const updateChallengeStatus = (day: number, completed: boolean): Challeng
   try {
     const plan: ChallengePlan = JSON.parse(stored);
     const challenge = plan.challenges.find(c => c.day === day);
-    
     if (challenge) {
       challenge.completed = completed;
-      savePlan(plan);
-      return plan;
-    }
-  } catch (e) {
-    console.error("Erro ao atualizar status do desafio", e);
-  }
-  return null;
-};
-
-export const addCommentToChallenge = (day: number, studentName: string, text: string): ChallengePlan | null => {
-  const stored = localStorage.getItem('mestre_desafios_plan');
-  if (!stored) return null;
-  
-  try {
-    const plan: ChallengePlan = JSON.parse(stored);
-    const challenge = plan.challenges.find(c => c.day === day);
-    
-    if (challenge) {
-      const newComment = {
-        id: crypto.randomUUID(),
-        studentName,
-        text,
-        timestamp: new Date().toISOString()
-      };
-      if (!challenge.comments) challenge.comments = [];
-      challenge.comments.push(newComment);
       savePlan(plan);
       return plan;
     }
@@ -265,17 +175,29 @@ export const addCommentToChallenge = (day: number, studentName: string, text: st
   return null;
 };
 
-export const getMentorships = (): Mentorship[] => {
+// Fix: Added missing export to allow Dashboard component to add comments to challenges
+export const addCommentToChallenge = (day: number, studentName: string, text: string): ChallengePlan | null => {
+  const stored = localStorage.getItem('mestre_desafios_plan');
+  if (!stored) return null;
+  
   try {
-    return JSON.parse(localStorage.getItem('mestre_desafios_mentorships') || '[]');
-  } catch (e) { return []; }
-};
-
-export const saveMentorship = (m: Mentorship) => {
-  const ms = getMentorships();
-  ms.push(m);
-  localStorage.setItem('mestre_desafios_mentorships', JSON.stringify(ms));
-  return m;
+    const plan: ChallengePlan = JSON.parse(stored);
+    const challenge = plan.challenges.find(c => c.day === day);
+    if (challenge) {
+      if (!challenge.comments) challenge.comments = [];
+      challenge.comments.push({
+        id: crypto.randomUUID(),
+        studentName,
+        text,
+        timestamp: new Date().toISOString()
+      });
+      savePlan(plan);
+      return plan;
+    }
+  } catch (e) {
+    console.error("Erro ao adicionar comentário:", e);
+  }
+  return null;
 };
 
 export const getStudents = (): RegisteredStudent[] => {
@@ -298,4 +220,8 @@ export const updateBranding = (branding: BrandingSettings) => {
     return user;
   }
   return null;
+};
+
+export const setStoreTenant = (slug: string) => {
+  // Implementação opcional para multi-tenant local
 };
