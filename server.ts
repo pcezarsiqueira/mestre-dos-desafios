@@ -32,13 +32,10 @@ let pool: mysql.Pool;
 const connectDB = async () => {
   try {
     pool = mysql.createPool(dbConfig);
-    // Teste de query simples para validar permissões e conexão
     const [rows] = await pool.execute('SELECT 1 + 1 AS result');
     console.log('✅ [DATABASE] MySQL conectado com sucesso em 72.60.136.59');
-    console.log('📊 [DATABASE] Teste de query (1+1):', (rows as any)[0].result);
   } catch (err: any) {
     console.error('❌ [DATABASE] ERRO CRÍTICO DE CONEXÃO:', err.message);
-    console.error('Verifique as regras de firewall do servidor 72.60.136.59 e se o usuário root tem permissão de acesso remoto.');
   }
 };
 
@@ -49,15 +46,30 @@ const ensureDb = (req: any, res: any, next: any) => {
   next();
 };
 
-// Rota de Diagnóstico
-app.get('/api/health', async (req, res) => {
+// Mapeador de usuário para converter snake_case do SQL para camelCase do App
+const mapUser = (u: any) => {
+    if (!u) return null;
+    let branding = null;
     try {
-        await pool.execute('SELECT 1');
-        res.json({ status: 'online', database: 'connected', timestamp: new Date() });
-    } catch (e: any) {
-        res.status(500).json({ status: 'error', database: e.message });
-    }
-});
+        branding = u.branding_json ? JSON.parse(u.branding_json) : null;
+    } catch (e) { branding = null; }
+
+    return {
+        id: u.id,
+        name: u.name,
+        email: u.email,
+        phone: u.phone,
+        instagram: u.instagram,
+        role: u.role,
+        credits: u.credits,
+        generationsCount: u.generations_count || 0,
+        notificationsEnabled: !!u.notifications_enabled,
+        isBlocked: !!u.is_blocked,
+        avatar: u.avatar || `https://ui-avatars.com/api/?name=${u.name}&background=fe7501&color=fff`,
+        branding: branding,
+        created_at: u.created_at
+    };
+};
 
 // --- API: USUÁRIOS ---
 app.post('/api/login', ensureDb, async (req, res) => {
@@ -65,11 +77,7 @@ app.post('/api/login', ensureDb, async (req, res) => {
     try {
         const [rows]: any = await pool.execute('SELECT * FROM users WHERE email = ? AND password = ?', [email, password]);
         if (rows.length > 0) {
-            const user = rows[0];
-            try {
-                if (user.branding_json) user.branding = JSON.parse(user.branding_json);
-            } catch (e) { user.branding = null; }
-            res.json(user);
+            res.json(mapUser(rows[0]));
         } else {
             res.status(401).json({ error: 'Credenciais inválidas' });
         }
@@ -81,13 +89,30 @@ app.post('/api/login', ensureDb, async (req, res) => {
 app.post('/api/register', ensureDb, async (req, res) => {
     const user = req.body;
     try {
+        // Alinhado com as colunas reais da tabela 'users' no MySQL
         await pool.execute(
-            'INSERT INTO users (id, name, email, phone, instagram, role, credits, branding_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE name=VALUES(name), phone=VALUES(phone), branding_json=VALUES(branding_json)',
-            [user.id, user.name, user.email, user.phone, user.instagram, user.role, user.credits, JSON.stringify(user.branding || {})]
+            `INSERT INTO users 
+            (id, name, email, phone, instagram, role, credits, generations_count, branding_json, notifications_enabled, is_blocked) 
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) 
+            ON DUPLICATE KEY UPDATE 
+            name=VALUES(name), phone=VALUES(phone), instagram=VALUES(instagram), branding_json=VALUES(branding_json)`,
+            [
+                user.id, 
+                user.name, 
+                user.email, 
+                user.phone || null, 
+                user.instagram || null, 
+                user.role || 'MENTOR', 
+                user.credits || 3, 
+                user.generationsCount || 0,
+                JSON.stringify(user.branding || {}),
+                user.notificationsEnabled ? 1 : 0,
+                user.isBlocked ? 1 : 0
+            ]
         );
         res.status(201).json(user);
-    } catch (error) {
-        console.error('Erro no registro:', error);
+    } catch (error: any) {
+        console.error('Erro no registro:', error.message);
         res.status(500).json({ error: 'Erro ao registrar no banco de dados' });
     }
 });
@@ -95,17 +120,8 @@ app.post('/api/register', ensureDb, async (req, res) => {
 app.get('/api/admin/users', ensureDb, async (req, res) => {
     try {
         const [rows]: any = await pool.execute('SELECT * FROM users ORDER BY created_at DESC');
-        // Sanitização dos dados JSON antes de enviar ao front
-        const users = rows.map((u: any) => {
-            try {
-                u.branding = u.branding_json ? JSON.parse(u.branding_json) : null;
-            } catch (e) { u.branding = null; }
-            delete u.password; // Segurança: nunca enviar a senha
-            return u;
-        });
-        res.json(users);
+        res.json(rows.map(mapUser));
     } catch (error: any) {
-        console.error('Erro ao buscar usuários:', error.message);
         res.status(500).json({ error: 'Erro ao buscar usuários' });
     }
 });
@@ -181,7 +197,8 @@ const distPath = path.join(__dirname, 'dist');
 app.use(express.static(distPath));
 
 app.get('*', (req, res) => {
-    if (req.path.startsWith('/api')) return res.status(404).json({ error: 'API route not found' });
+    // Se o Nginx não capturou /api, o Node captura aqui e avisa que a rota GET não existe
+    if (req.path.startsWith('/api')) return res.status(404).json({ error: 'Rota de API inexistente ou método incorreto' });
     res.sendFile(path.join(distPath, 'index.html'));
 });
 
