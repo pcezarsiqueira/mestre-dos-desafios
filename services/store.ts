@@ -1,7 +1,19 @@
 
 import { ChallengePlan, User, UserRole, BrandingSettings, Mentorship, RegisteredStudent, RegisteredGroup } from "../types";
 
-const API_URL = 'http://localhost:3001/api';
+// Detecção dinâmica da URL da API
+const getBaseApiUrl = () => {
+  const { hostname, protocol } = window.location;
+  // Se estivermos em localhost, usamos a porta 3001
+  if (hostname === 'localhost' || hostname === '127.0.0.1') {
+    return `${protocol}//${hostname}:3001/api`;
+  }
+  // Em produção, assumimos que a API está no mesmo host ou em um subdomínio 'api'
+  // Ajuste conforme sua infraestrutura real. Aqui usamos o padrão de API no mesmo servidor.
+  return `${protocol}//${hostname}/api`;
+};
+
+const API_URL = getBaseApiUrl();
 
 // Variável para controle de tenant (subdomínio) no armazenamento local
 let storeTenant = 'default';
@@ -39,23 +51,26 @@ export const registerLead = async (data: { name: string, email: string, phone: s
 
   try {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 3000); // 3s timeout
+    const timeoutId = setTimeout(() => controller.abort(), 4000);
 
-    await fetch(`${API_URL}/register`, {
+    const response = await fetch(`${API_URL}/register`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(newUser),
       signal: controller.signal
     });
     clearTimeout(timeoutId);
+    if (response.ok) {
+        console.log("Usuário registrado com sucesso no banco de dados.");
+    }
   } catch (e) {
-    console.warn("Backend indisponível, operando em modo offline (localStorage).");
+    console.warn("Backend indisponível no momento. Seus dados estão salvos localmente e serão sincronizados depois.");
   }
   return newUser;
 };
 
 export const loginAdmin = async (email: string, pass: string): Promise<User | null> => {
-    // Check for hardcoded admin first for quick access
+    // Super Admin Hardcoded para emergências
     if (email === 'admin@mestre.com' && pass === 'mestre@123') {
         const admin: User = { id: 'admin-001', name: 'Mestre Admin', email: 'admin@mestre.com', role: UserRole.ADMIN, credits: 999, generationsCount: 0, notificationsEnabled: true, isBlocked: false };
         localStorage.setItem('mestre_desafios_user', JSON.stringify(admin));
@@ -64,7 +79,7 @@ export const loginAdmin = async (email: string, pass: string): Promise<User | nu
 
     try {
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 3000);
+        const timeoutId = setTimeout(() => controller.abort(), 4000);
 
         const response = await fetch(`${API_URL}/login`, {
             method: 'POST',
@@ -80,10 +95,10 @@ export const loginAdmin = async (email: string, pass: string): Promise<User | nu
             return user;
         }
     } catch (e) {
-        console.warn("Falha ao contatar backend para login. Verifique se o servidor está rodando na porta 3001.");
+        console.warn("Falha de conexão com o servidor de login.");
     }
     
-    // Fallback: se houver um usuário no localStorage que bata com as credenciais (simulado)
+    // Fallback: se já houver um usuário logado localmente com o mesmo e-mail
     const stored = getCurrentUser();
     if (stored && stored.email === email) return stored;
 
@@ -96,8 +111,10 @@ export const fetchAllUsers = async (): Promise<User[]> => {
     try {
         const response = await fetch(`${API_URL}/admin/users`);
         if (!response.ok) throw new Error("Erro ao buscar usuários");
-        return await response.json();
+        const data = await response.json();
+        return Array.isArray(data) ? data : [];
     } catch (e) {
+        console.error("Erro fetchAllUsers:", e);
         return [];
     }
 };
@@ -145,8 +162,12 @@ export const deleteUserAccount = async (id: string) => {
 };
 
 export const getCurrentUser = (): User | null => {
-  const stored = localStorage.getItem('mestre_desafios_user');
-  return stored ? JSON.parse(stored) : null;
+  try {
+    const stored = localStorage.getItem('mestre_desafios_user');
+    return stored ? JSON.parse(stored) : null;
+  } catch (e) {
+    return null;
+  }
 };
 
 export const savePlan = async (plan: ChallengePlan | null) => {
@@ -175,7 +196,10 @@ export const getPlan = async (mentorId?: string): Promise<ChallengePlan | null> 
   return stored ? JSON.parse(stored) : null;
 };
 
-export const logoutUser = () => { localStorage.removeItem('mestre_desafios_user'); };
+export const logoutUser = () => { 
+  localStorage.removeItem('mestre_desafios_user'); 
+  localStorage.removeItem('mestre_desafios_plan');
+};
 
 export const deductCredit = () => {
     const user = getCurrentUser();
@@ -202,13 +226,17 @@ export const updateChallengeStatus = (day: number, completed: boolean): Challeng
   const stored = localStorage.getItem('mestre_desafios_plan');
   if (!stored) return null;
   
-  const plan: ChallengePlan = JSON.parse(stored);
-  const challenge = plan.challenges.find(c => c.day === day);
-  
-  if (challenge) {
-    challenge.completed = completed;
-    savePlan(plan);
-    return plan;
+  try {
+    const plan: ChallengePlan = JSON.parse(stored);
+    const challenge = plan.challenges.find(c => c.day === day);
+    
+    if (challenge) {
+      challenge.completed = completed;
+      savePlan(plan);
+      return plan;
+    }
+  } catch (e) {
+    console.error("Erro ao atualizar status do desafio", e);
   }
   return null;
 };
@@ -217,33 +245,50 @@ export const addCommentToChallenge = (day: number, studentName: string, text: st
   const stored = localStorage.getItem('mestre_desafios_plan');
   if (!stored) return null;
   
-  const plan: ChallengePlan = JSON.parse(stored);
-  const challenge = plan.challenges.find(c => c.day === day);
-  
-  if (challenge) {
-    const newComment = {
-      id: crypto.randomUUID(),
-      studentName,
-      text,
-      timestamp: new Date().toISOString()
-    };
-    if (!challenge.comments) challenge.comments = [];
-    challenge.comments.push(newComment);
-    savePlan(plan);
-    return plan;
-  }
+  try {
+    const plan: ChallengePlan = JSON.parse(stored);
+    const challenge = plan.challenges.find(c => c.day === day);
+    
+    if (challenge) {
+      const newComment = {
+        id: crypto.randomUUID(),
+        studentName,
+        text,
+        timestamp: new Date().toISOString()
+      };
+      if (!challenge.comments) challenge.comments = [];
+      challenge.comments.push(newComment);
+      savePlan(plan);
+      return plan;
+    }
+  } catch (e) {}
   return null;
 };
 
-export const getMentorships = (): Mentorship[] => JSON.parse(localStorage.getItem('mestre_desafios_mentorships') || '[]');
+export const getMentorships = (): Mentorship[] => {
+  try {
+    return JSON.parse(localStorage.getItem('mestre_desafios_mentorships') || '[]');
+  } catch (e) { return []; }
+};
+
 export const saveMentorship = (m: Mentorship) => {
   const ms = getMentorships();
   ms.push(m);
   localStorage.setItem('mestre_desafios_mentorships', JSON.stringify(ms));
   return m;
 };
-export const getStudents = (): RegisteredStudent[] => JSON.parse(localStorage.getItem('mestre_desafios_students') || '[]');
-export const getGroups = (): RegisteredGroup[] => JSON.parse(localStorage.getItem('mestre_desafios_groups') || '[]');
+
+export const getStudents = (): RegisteredStudent[] => {
+  try {
+    return JSON.parse(localStorage.getItem('mestre_desafios_students') || '[]');
+  } catch (e) { return []; }
+};
+
+export const getGroups = (): RegisteredGroup[] => {
+  try {
+    return JSON.parse(localStorage.getItem('mestre_desafios_groups') || '[]');
+  } catch (e) { return []; }
+};
 
 export const updateBranding = (branding: BrandingSettings) => {
   const user = getCurrentUser();

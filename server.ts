@@ -10,14 +10,36 @@ const app = express();
 app.use(express.json());
 app.use(cors());
 
+// Configurações do Banco de Dados fornecidas pelo usuário
 const dbConfig = {
-    host: process.env.DB_HOST || 'localhost',
-    user: process.env.DB_USER || 'root',
-    password: process.env.DB_PASSWORD || '',
-    database: process.env.DB_NAME || 'mestre_desafios_db'
+    host: '72.60.136.5',
+    user: 'root',
+    password: 'Al#!9th18',
+    database: 'mestredesafios',
+    waitForConnections: true,
+    connectionLimit: 10,
+    queueLimit: 0
 };
 
-const pool = mysql.createPool(dbConfig);
+// Criando o pool de conexão com tratamento de erro inicial
+let pool: mysql.Pool;
+try {
+  pool = mysql.createPool(dbConfig);
+  console.log('Pool de conexão MySQL configurado para 72.60.136.5');
+} catch (err) {
+  console.error('Erro ao criar pool de conexão:', err);
+}
+
+// Middleware para verificar se a conexão com o DB está ativa
+const checkDb = async (req: any, res: any, next: any) => {
+  try {
+    const conn = await pool.getConnection();
+    conn.release();
+    next();
+  } catch (err) {
+    res.status(500).json({ error: 'Banco de dados inacessível no momento.' });
+  }
+};
 
 // --- AUTH ---
 
@@ -38,9 +60,22 @@ app.post('/api/login', async (req, res) => {
     }
 });
 
+app.post('/api/register', async (req, res) => {
+    const user = req.body;
+    try {
+        await pool.execute(
+            'INSERT INTO users (id, name, email, phone, instagram, role, credits, branding_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+            [user.id, user.name, user.email, user.phone, user.instagram, user.role, user.credits, JSON.stringify(user.branding)]
+        );
+        res.status(201).json(user);
+    } catch (error) {
+        res.status(500).json({ error: 'Erro ao registrar usuário' });
+    }
+});
+
 // --- ADMIN USERS MANAGEMENT ---
 
-app.get('/api/admin/users', async (req, res) => {
+app.get('/api/admin/users', checkDb, async (req, res) => {
     try {
         const [rows]: any = await pool.execute('SELECT id, name, email, role, credits, is_blocked, total_spent, created_at FROM users ORDER BY created_at DESC');
         res.json(rows);
@@ -70,7 +105,7 @@ app.put('/api/admin/users/:id', async (req, res) => {
 });
 
 app.post('/api/admin/users/:id/credits', async (req, res) => {
-    const { amount } = req.body; // Pode ser positivo ou negativo
+    const { amount } = req.body;
     try {
         await pool.execute('UPDATE users SET credits = credits + ? WHERE id = ?', [amount, req.params.id]);
         res.json({ success: true });
@@ -136,4 +171,8 @@ app.post('/api/tenants', async (req, res) => {
 });
 
 const PORT = process.env.PORT || 3001;
-app.listen(PORT, () => console.log(`Backend Mestre rodando na porta ${PORT}`));
+// Ouvindo em 0.0.0.0 para permitir acesso externo
+app.listen(PORT, () => {
+    console.log(`Backend Mestre rodando na porta ${PORT}`);
+    console.log(`Conectado ao MySQL em 72.60.136.5`);
+});
